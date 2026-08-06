@@ -1,5 +1,5 @@
 # @browsercore/api
-[![coverage](https://img.shields.io/endpoint?url=https://jverneuer.github.io/browsercore-contracts/badge.json)](https://github.com/jverneuer/browsercore-api)
+[![coverage](https://img.shields.io/endpoint?url=https://jverneuer.github.io/browsercore-api/badge.json)](https://github.com/jverneuer/browsercore-api)
 
 Shared interfaces and packet inspection types for the browsercore stack.
 
