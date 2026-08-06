@@ -1,7 +1,7 @@
 {
-    "name": "@browsercore/api",
+    "name": "@browsercore/contracts",
     "version": "0.1.0",
-    "description": "Shared interfaces and packet inspection types for the browsercore stack",
+    "description": "Shared interfaces, models, and options for the browsercore stack",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -11,7 +11,9 @@
             "import": "./dist/index.js"
         }
     },
-    "files": ["dist"],
+    "files": [
+        "dist"
+    ],
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "typecheck": "tsc --noEmit",
@@ -20,5 +22,12 @@
     "license": "MIT",
     "publishConfig": {
         "access": "public"
+    },
+    "devDependencies": {
+        "@types/node": "^26.1.2",
+        "typescript": "^7.0.2"
+    },
+    "dependencies": {
+        "ts-log": "^3.0.2"
     }
 }

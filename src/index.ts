@@ -1,44 +1,102 @@
 /**
- * @browsercore/core — shared interfaces and packet inspection types.
+ * @browsercore/contracts — the public SDK surface for the browsercore stack.
  *
- * This package defines:
- * - {@link ProtocolFrame} and its variants (TlsFrame, Http2Frame, etc.)
- * - {@link PacketCallback} for packet inspection
- * - {@link PacketInspectionOptions} mixin for protocol package options
+ * This package contains every type that defines how BrowserCore components
+ * communicate with each other. It is implementation-independent: no node:crypto,
+ * node:net, Buffer, curl, OpenSSL, ngtcp2, or any implementation details.
  *
- * The core package has zero runtime dependencies and is safe to import
- * from any layer without creating circular dependencies.
+ * Litmus test: "Could another package reasonably import this type?"
+ * If yes → belongs here. If only one protocol touches it → stays in that package.
+ *
+ * Architecture:
+ *
+ *   @browsercore/contracts (this package)
+ *           ▲
+ *           │
+ *    ┌──────┼─────────────┐
+ *    │      │             │
+ *    ▼      ▼             ▼
+ *   tls    http2       transport
+ *    │       │             │
+ *    └───────┴─────────────┘
+ *            ▼
+ *      @browsercore/browsersmith
  */
 
-// Frame types
-export type {
-    ProtocolFrame,
-    PacketDirection,
-    TlsFrame,
-    TlsRecordHeader,
-    Http2Frame,
-    Http2FrameHeader,
-    Http3Frame,
-    QuicFrame,
-    AnyFrame,
-} from "./frames.js";
-
-export {
-    TlsContentType,
-    TlsHandshakeType,
-    Http2FrameType,
-    Http3FrameType,
-    QuicLongPacketType,
-} from "./frames.js";
+// ===========================================================================
+// Contracts — interfaces that define the API
+// ===========================================================================
 
 export type {
-    TlsContentTypeValue,
-    TlsHandshakeTypeValue,
-    Http2FrameTypeValue,
-    Http3FrameTypeValue,
-    QuicLongPacketTypeValue,
-} from "./frames.js";
+    // Provider contracts
+    CryptoProvider,
+    CompressionProvider,
+    Transport,
+    DatagramTransport,
+    // Protocol connections
+    TlsConnection,
+    Http1Connection,
+    Http2Connection,
+    Http3Connection,
+    QuicConnection,
+    QuicStream,
+    // Client contracts
+    FetchClient,
+    CookieJar,
+    // Cross-cutting
+    Logger,
+    Clock,
+    PacketCallback,
+    PacketInspectionOptions,
+} from "./contracts.js";
 
-// Packet inspection
-export type { PacketCallback, PacketInspectionOptions } from "./callback.js";
-export { noopPacketCallback } from "./callback.js";
+export { silentLogger } from "./contracts.js";
+
+// ===========================================================================
+// Models — shared data structures
+// ===========================================================================
+
+export type {
+    // Identifiers
+    ProfileId,
+    // Browser profile
+    BrowserProfile,
+    TlsProfile,
+    Http1Profile,
+    Http2Profile,
+    // HTTP messages
+    Request,
+    Response,
+    FetchOptions,
+    FetchResponse,
+    // Headers
+    Headers,
+    // Cookies
+    Cookie,
+    // Crypto types
+    HashId,
+    EcdhCurve,
+    X25519KeyPair,
+    EcdhKeyPair,
+    // Transport types
+    UdpAddress,
+    TransportState,
+    CloseReason,
+    DatagramCloseReason,
+    TlsState,
+    // Compression
+    ContentEncoding,
+} from "./models.js";
+
+// ===========================================================================
+// Options — configuration for protocol packages
+// ===========================================================================
+
+export type {
+    TlsOptions,
+    Http1Options,
+    Http2Options,
+    Http3Options,
+    QuicOptions,
+    FetchClientOptions,
+} from "./options.js";
