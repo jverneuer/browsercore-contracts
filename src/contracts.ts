@@ -215,18 +215,6 @@ export interface CookieJar {
 // ===========================================================================
 
 /**
- * Logging abstraction — re-exported from ts-log.
- *
- * Why here: Every protocol package needs logging.
- */
-export { type Logger, dummyLogger } from "ts-log";
-
-/**
- * No-op logger — drops every call. This is the default.
- */
-export { dummyLogger as silentLogger } from "ts-log";
-
-/**
  * Time-source abstraction.
  * Injected for deterministic tests.
  *
