@@ -44,13 +44,10 @@ export type {
     FetchClient,
     CookieJar,
     // Cross-cutting
-    Logger,
     Clock,
     PacketCallback,
     PacketInspectionOptions,
 } from "./contracts.js";
-
-export { silentLogger } from "./contracts.js";
 
 // ===========================================================================
 // Models — shared data structures

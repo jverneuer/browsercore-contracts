@@ -10,12 +10,11 @@ import type {
     Transport,
     DatagramTransport,
     QuicConnection,
-    Logger,
     Clock,
     PacketCallback,
     CookieJar,
 } from "./contracts.js";
-import type { BrowserProfile, UdpAddress, FetchOptions } from "./models.js";
+import type { BrowserProfile, UdpAddress } from "./models.js";
 
 // ===========================================================================
 // TLS Options
@@ -26,7 +25,6 @@ export interface TlsOptions {
     readonly profile: BrowserProfile;
     readonly serverName: string;
     readonly clock?: Clock;
-    readonly logger?: Logger;
     readonly onPacket?: PacketCallback;
 }
 
@@ -37,7 +35,6 @@ export interface TlsOptions {
 export interface Http1Options {
     readonly transport: Transport;
     readonly profile: BrowserProfile;
-    readonly logger?: Logger;
     readonly onPacket?: PacketCallback;
 }
 
@@ -48,7 +45,6 @@ export interface Http1Options {
 export interface Http2Options {
     readonly transport: Transport;
     readonly profile: BrowserProfile;
-    readonly logger?: Logger;
     readonly onPacket?: PacketCallback;
 }
 
@@ -59,7 +55,6 @@ export interface Http2Options {
 export interface Http3Options {
     readonly quic: QuicConnection;
     readonly clock?: Clock;
-    readonly logger?: Logger;
     readonly onPacket?: PacketCallback;
 }
 
@@ -75,7 +70,6 @@ export interface QuicOptions {
     readonly initialScid: Uint8Array;
     readonly handshakeTimeoutMs?: number;
     readonly clock?: Clock;
-    readonly logger?: Logger;
     readonly onPacket?: PacketCallback;
 }
 
