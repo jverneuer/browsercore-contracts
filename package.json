@@ -1,5 +1,5 @@
 {
-    "name": "@browsercore/core",
+    "name": "@browsercore/api",
     "version": "0.1.0",
     "description": "Shared interfaces and packet inspection types for the browsercore stack",
     "type": "module",

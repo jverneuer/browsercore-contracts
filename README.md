@@ -1,4 +1,4 @@
-# @browsercore/core
+# @browsercore/api
 
 Shared interfaces and packet inspection types for the browsercore stack.
 
@@ -22,7 +22,7 @@ All frame types are discriminated by the `protocol` field.
 Add the `onPacket` callback to your options:
 
 ```typescript
-import type { PacketCallback, PacketInspectionOptions } from "@browsercore/core";
+import type { PacketCallback, PacketInspectionOptions } from "@browsercore/api";
 
 interface MyOptions {
     // ... existing options
@@ -46,7 +46,7 @@ async function connect(options: MyOptions) {
 
 ```typescript
 import { createInspectorSession } from "@browsercore/devtools";
-import type { PacketCallback } from "@browsercore/core";
+import type { PacketCallback } from "@browsercore/api";
 
 const session = createInspectorSession();
 
