@@ -88,6 +88,15 @@ export type {
     ContentEncoding,
 } from "./models.js";
 
+// IANA TLS parameter registries — canonical wire code tables.
+export {
+    CIPHER_GREASE_PLACEHOLDER,
+    CIPHER_SUITE_CODES,
+    NAMED_GROUP_CODES,
+    SIGNATURE_SCHEME_CODES,
+    VERSION_CODES,
+} from "./models.js";
+
 // ===========================================================================
 // Options — configuration for protocol packages
 // ===========================================================================
