@@ -1,8 +1,18 @@
 {
     "name": "@browsercore/contracts",
-    "version": "0.1.4",
+    "version": "0.2.0",
     "description": "Shared interfaces, models, and options for the browsercore stack",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jverneuer/browsercore-contracts.git"
+    },
+    "homepage": "https://github.com/jverneuer/browsercore-contracts#readme",
+    "bugs": {
+        "url": "https://github.com/jverneuer/browsercore-contracts/issues"
+    },
+    "license": "MIT",
     "type": "module",
+    "sideEffects": false,
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
@@ -12,19 +22,26 @@
         }
     },
     "files": [
-        "dist"
+        "dist",
+        "LICENSE"
     ],
-    "scripts": {
-        "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit",
-        "clean": "rm -rf dist"
-    },
-    "license": "MIT",
     "publishConfig": {
-        "access": "public"
+        "access": "public",
+        "registry": "https://registry.npmjs.org/"
+    },
+    "scripts": {
+        "clean": "rm -rf dist",
+        "build": "tsc -p tsconfig.json",
+        "prepublishOnly": "npm run clean && npm run build",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "test": "vitest run",
+        "lint": "oxlint --type-aware src/"
     },
     "devDependencies": {
         "@types/node": "^26.1.2",
-        "typescript": "^7.0.2"
+        "@vitest/coverage-v8": "^4.1.10",
+        "oxlint": "^1.8.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10"
     }
 }
