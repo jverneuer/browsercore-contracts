@@ -1,17 +1,12 @@
 name: Deploy coverage badge to Pages
 
 on:
-<<<<<<< HEAD
-  push:
-    branches: [main]
-=======
   workflow_run:
-    workflows: [".github/workflows/ci.yml"]
+    workflows: ["build-and-publish"]
     types:
       - completed
     branches:
       - main
->>>>>>> origin/fix/pages-badge
 
 permissions:
   contents: read
@@ -24,25 +19,12 @@ concurrency:
 
 jobs:
   deploy:
-<<<<<<< HEAD
-=======
     if: always() && github.event.workflow_run.conclusion != 'cancelled'
->>>>>>> origin/fix/pages-badge
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-<<<<<<< HEAD
-      - uses: actions/checkout@v7
-      - name: Generate badge
-        run: |
-          mkdir -p _site
-          node -e "
-          const badge = { schemaVersion: 1, label: 'coverage', message: '100%', color: 'brightgreen', namedLogo: 'vitest' };
-          require('fs').writeFileSync('_site/badge.json', JSON.stringify(badge));
-          "
-=======
       - uses: actions/download-artifact@v8
         with:
           name: coverage-report
@@ -50,7 +32,6 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - run: mv _site/.github/coverage-badge.json _site/badge.json && rm -rf _site/.github
->>>>>>> origin/fix/pages-badge
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -1,3 +1,5 @@
+name: build-and-publish
+
 on:
   push:
     branches: [main]
@@ -9,71 +11,11 @@ permissions:
 
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
-    environment: CI
+    uses: jverneuer/browsercore-dev/.github/workflows/reusable-ci.yml@main
+    with:
+      node-version: '26'
+      deploy-pages: true
     permissions:
       contents: write
       id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          registry-url: https://registry.npmjs.org
-
-      - run: npm install
-      - run: npm run typecheck
-      - run: npm run build
-
-      - name: Detect version change
-        id: version
-        run: |
-          CURRENT=$(node -p "require('./package.json').version")
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
-          PARENT=$(git rev-parse HEAD^ 2>/dev/null || echo "")
-          if [ -z "$PARENT" ]; then
-            CHANGED="true"
-          else
-            PREVIOUS=$(git show "$PARENT:package.json" 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || echo "")
-            if [ "$CURRENT" != "$PREVIOUS" ]; then
-              CHANGED="true"
-            else
-              CHANGED="false"
-            fi
-          fi
-          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
-          echo "Version $CURRENT (previous: ${PREVIOUS:-<none>}) — changed: $CHANGED"
-
-      - name: Publish to npm
-        if: steps.version.outputs.changed == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          NAME=$(node -p "require('./package.json').name")
-          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
-            echo "$NAME@$VERSION already on npm — skipping publish"
-            exit 0
-          fi
-          npm publish --access public
-
-      - name: Create git tag and GitHub Release
-        if: steps.version.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          TAG="v$VERSION"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "tag $TAG already exists — skipping release"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG"
-          git push origin "$TAG"
-          gh release create "$TAG" --title "$TAG" --generate-notes
+      pages: write

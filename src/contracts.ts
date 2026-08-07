@@ -6,16 +6,22 @@
  */
 
 import type {
-    // From models
-    BrowserProfile,
+    ContentEncoding,
     Cookie,
+    DatagramCloseReason,
+    EcdhCurve,
+    EcdhKeyPair,
     FetchOptions,
     FetchResponse,
-    Headers,
+    HashId,
     ProtocolFrame,
     Request,
     Response,
+    TransportState,
+    CloseReason,
+    TlsState,
     UdpAddress,
+    X25519KeyPair,
 } from "./models.js";
 
 // ===========================================================================
@@ -238,11 +244,3 @@ export type PacketCallback = (frame: ProtocolFrame) => void;
 export interface PacketInspectionOptions {
     readonly onPacket?: PacketCallback;
 }
-
-// ===========================================================================
-// Shared Types (imported from models)
-// ===========================================================================
-
-import type { HashId, EcdhCurve, X25519KeyPair, EcdhKeyPair } from "./models.js";
-import type { ContentEncoding } from "./models.js";
-import type { TransportState, CloseReason, DatagramCloseReason, TlsState } from "./models.js";
