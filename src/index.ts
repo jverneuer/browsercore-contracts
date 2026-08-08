@@ -44,7 +44,6 @@ export type {
     FetchClient,
     CookieJar,
     // Cross-cutting
-    Clock,
     PacketCallback,
     PacketInspectionOptions,
 } from "./contracts.js";
@@ -95,7 +94,7 @@ export {
 } from "./models.js";
 
 // ===========================================================================
-// Net — platform-agnostic TCP + DNS contracts
+// TcpTransport — platform-agnostic TCP + DNS contracts
 // ===========================================================================
 
 export type {
@@ -105,7 +104,7 @@ export type {
     DnsResolver,
     IPAddress,
     Network,
-} from "./net.js";
+} from "./tcp-transport.js";
 
 // ===========================================================================
 // Events — platform-agnostic event contracts
@@ -133,16 +132,14 @@ export type {
 // ===========================================================================
 
 export type {
-    Duration,
+    Clock,
     Deadline,
     Scheduler,
     Time,
 } from "./time.js";
 
-// Note: `Clock` from time.ts is intentionally NOT re-exported here because
-// contracts.ts exports its own `Clock` (with setTimeout) used by legacy
-// options. Consumers building a Platform import Clock directly from
-// "./time.js" — they don't need the barrel.
+/** Duration static factories — `Duration.seconds(5)`, `Duration.milliseconds(250)`. */
+export { Duration } from "./time.js";
 
 // ===========================================================================
 // Platform — composition root
@@ -152,6 +149,7 @@ export type {
     Compression,
     Crypto,
     Platform,
+    PlatformOptions,
 } from "./platform.js";
 
 // ===========================================================================

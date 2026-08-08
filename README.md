@@ -6,7 +6,10 @@
 
 The canonical interface package for the browsercore stack. Every protocol
 package, runtime adapter, and consumer depends on these contracts — they
-define how components communicate without coupling them to each other.
+define how components communicate without coupling them to each other. This is
+now the single source of truth for **all** cross-package interfaces, including
+the `Platform` service contracts (events, time, telemetry, network, crypto,
+compression).
 
 ## Why this package exists
 
@@ -20,8 +23,9 @@ any package diverges.
 **Alternative implementations welcome.** The contracts define exactly what a
 component must satisfy — nothing more. Want to write a different TLS engine?
 Implement `TlsConnection`. A different transport? Implement `Transport`. A
-different runtime (Bun, Deno, Workers)? Implement `Net` and `DnsResolver`. The
-contracts are the spec; the packages are the reference implementations.
+different runtime (Bun, Deno, Workers)? Implement the `Platform` service
+interfaces. The contracts are the spec; the packages are the reference
+implementations.
 
 **Implementation-independent.** No `node:crypto`, `node:net`, `Buffer`, or any
 runtime details leak into these types. They are portable TypeScript interfaces
@@ -30,29 +34,33 @@ and plain data.
 ## Architecture
 
 ```
-@browsercore/contracts (this package — interfaces + models + wire codes)
+@browsercore/contracts (this package — interfaces + services + models)
          ▲
          │
-  ┌──────┼─────────────┐
-  │      │             │
-  ▼      ▼             ▼
- tls    http2       transport
-  │       │             │
-  └───────┴─────────────┘
-          ▼
-    @browsercore/fetch
-          ▼
-    browsersmith (entrypoint)
+  ┌──────┼─────────────────────────────┐
+  │      │                             │
+  ▼      ▼                             ▼
+transport   tls   http1   http2   http3   quic   fetch   crypto   compression
+  │         │      │       │       │       │       │        │         │
+  └─────────┴──────┴───────┴───────┴───────┴───────┴────────┴─────────┘
+                                    ▼
+                           browsersmith (composition root — builds Platform)
 ```
 
 Dependency direction is strictly upward — contracts is the root dependency.
-No package below contracts in the graph; every other package imports from it.
+`browsersmith` is the **only** package allowed `node:*` imports; it builds a
+`Platform` object that threads runtime capabilities (network, crypto,
+compression, events, telemetry, time) down through options.
 
 ## What's inside
 
 | Module | Purpose | Key exports |
 |---|---|---|
-| **Contracts** | Provider + connection interfaces that protocol packages implement | `CryptoProvider`, `CompressionProvider`, `Transport`, `DatagramTransport`, `TlsConnection`, `Http1Connection`, `Http2Connection`, `Http3Connection`, `QuicConnection`, `QuicStream`, `FetchClient`, `CookieJar`, `Clock`, `PacketCallback` |
+| **Contracts** | Provider + connection interfaces that protocol packages implement | `CryptoProvider`, `CompressionProvider`, `Transport`, `DatagramTransport`, `TlsConnection`, `Http1Connection`, `Http2Connection`, `Http3Connection`, `QuicConnection`, `QuicStream`, `FetchClient`, `CookieJar`, `PacketCallback` |
+| **Platform** | The composition root + per-service bundles | `Platform`, `PlatformOptions`, `Network`, `Crypto`, `Compression` |
+| **Events** | EventTarget-backed emitter abstraction | `EventProvider`, `TypedEventEmitter<T>` |
+| **Time** | Clock + scheduler with composable deadlines | `Clock`, `Duration`, `Scheduler`, `Deadline`, `Time` |
+| **Telemetry** | OTel-aligned observability | `Logger`, `Tracer`, `Span`, `Metrics`, `Telemetry` |
 | **Models** | Shared data structures that cross package boundaries | `BrowserProfile`, `TlsProfile`, `Http1Profile`, `Http2Profile`, `Request`, `Response`, `Headers`, `Cookie`, `TransportState`, `CloseReason`, `ContentEncoding` |
 | **Net** | Platform-agnostic TCP + DNS contracts for runtime portability | `Net`, `DnsResolver`, `Socket`, `ConnectOptions`, `IPAddress` |
 | **Options** | Configuration objects passed to each protocol package | `TlsOptions`, `Http1Options`, `Http2Options`, `Http3Options`, `QuicOptions`, `FetchClientOptions` |
@@ -90,8 +98,8 @@ class MyCustomTransport implements Transport {
 ## Design rules
 
 1. **If a type crosses a package boundary, it lives here.** Litmus test:
-   *"Could two packages reasonably import this type?"* If yes → contracts.
-   If only one package uses it → stays in that package.
+   *"Could someone build an alternative package against it?"* If yes →
+   contracts. If only one package uses it → stays in that package.
 
 2. **No runtime behavior.** Only TypeScript types and `const` data tables.
    No classes with logic, no functions with side effects.
@@ -109,5 +117,5 @@ class MyCustomTransport implements Transport {
 ## Zero overhead
 
 All type exports are erased by the TypeScript compiler. The only runtime
-exports are the IANA wire code tables — plain `const` objects with no
-dependencies, no side effects.
+exports are the IANA wire code tables and `Duration` factories — plain
+`const` objects with no dependencies, no side effects.

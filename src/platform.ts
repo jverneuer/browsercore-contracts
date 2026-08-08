@@ -23,8 +23,11 @@
  * and zero node:* imports.
  */
 
-import type { Network } from "./net.js";
+import type { Network } from "./tcp-transport.js";
+import type { Net, DnsResolver } from "./tcp-transport.js";
 import type { CryptoProvider } from "./contracts.js";
+import type { CompressionProvider } from "./contracts.js";
+import type { DatagramTransport } from "./contracts.js";
 import type { EventProvider } from "./events.js";
 import type { Telemetry } from "./telemetry.js";
 import type { Time } from "./time.js";
@@ -36,21 +39,14 @@ import type { Time } from "./time.js";
 /**
  * `Compression` — the injected synchronous compression bundle (part of `Platform`).
  *
- * Why sync: callers already own the hot path and want predictable latency.
- * Streaming variants belong on the implementation, not the contract.
+ * Alias for {@link CompressionProvider}: the single source of truth for the
+ * compression contract. The async `encode/decode(ContentEncoding)` shape had
+ * zero consumers and is dropped.
  *
  * Injected as `Platform.compression`; protocol packages receive it through
  * options, never by importing `node:zlib` directly.
  */
-export interface Compression {
-    gzipSync(data: Uint8Array): Uint8Array;
-    gunzipSync(data: Uint8Array): Uint8Array;
-    deflateSync(data: Uint8Array): Uint8Array;
-    inflateSync(data: Uint8Array): Uint8Array;
-    brotliCompressSync(data: Uint8Array): Uint8Array;
-    brotliDecompressSync(data: Uint8Array): Uint8Array;
-    decompressSync(data: Uint8Array): Uint8Array;
-}
+export type Compression = CompressionProvider;
 
 // ===========================================================================
 // Crypto bundle
@@ -86,4 +82,29 @@ export interface Platform {
     readonly events: EventProvider;
     readonly telemetry: Telemetry;
     readonly time: Time;
+}
+
+// ===========================================================================
+// Platform options
+// ===========================================================================
+
+/**
+ * Options for overriding individual platform adapters.
+ *
+ * Every field is optional — omit a field to use the default implementation.
+ * Use this in tests to inject mocks, or in production to swap a backend.
+ */
+export interface PlatformOptions {
+    readonly network?: {
+        readonly tcp?: Net;
+        readonly dns?: DnsResolver;
+        readonly udp?: DatagramTransport;
+    };
+    readonly crypto?: {
+        readonly provider?: CryptoProvider;
+    };
+    readonly compression?: Compression;
+    readonly events?: EventProvider;
+    readonly telemetry?: Telemetry;
+    readonly time?: Time;
 }

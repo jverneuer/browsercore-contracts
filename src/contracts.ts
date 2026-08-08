@@ -67,11 +67,34 @@ export interface CryptoProvider {
  *
  * Why here: HTTP/1 and HTTP/2 both need compression. Provided via
  * `Platform.compression` and passed down through options — protocols never
- * bind to `node:zlib` directly.
+ * bind to `node:zlib` directly. All operations are synchronous and
+ * unit-testable. Portable across backends (node:zlib, WebCompressionStream,
+ * wasm brotli).
+ *
+ * The async `encode/decode(ContentEncoding)` shape had zero consumers and is
+ * dropped. This sync shape is the single source of truth.
  */
 export interface CompressionProvider {
-    encode(encoding: ContentEncoding, data: Uint8Array): Promise<Uint8Array>;
-    decode(encoding: ContentEncoding, data: Uint8Array): Promise<Uint8Array>;
+    /** Compress `data` with gzip. */
+    gzip(data: Uint8Array): Uint8Array;
+    /** Decompress a gzip-encoded `data`. */
+    gunzip(data: Uint8Array): Uint8Array;
+
+    /** Compress `data` with zlib-wrapped deflate. */
+    deflate(data: Uint8Array): Uint8Array;
+    /** Decompress a zlib-wrapped deflate `data`. */
+    inflate(data: Uint8Array): Uint8Array;
+
+    /** Decompress a raw (headerless) deflate `data`. */
+    inflateRaw(data: Uint8Array): Uint8Array;
+
+    /** Compress `data` with brotli. */
+    brotliCompress(data: Uint8Array): Uint8Array;
+    /** Decompress a brotli-encoded `data`. */
+    brotliDecompress(data: Uint8Array): Uint8Array;
+
+    /** Decompress a body according to a `content-encoding` header value. */
+    decompress(data: Uint8Array, encoding: ContentEncoding): Uint8Array;
 }
 
 /**
@@ -260,18 +283,10 @@ export interface CookieJar {
 // Cross-cutting Contracts
 // ===========================================================================
 
-/**
- * `Clock` — the injected time-source surface.
- *
- * Why here: Every protocol package needs time. Injected via `Platform.time`
- * so tests can substitute a deterministic clock instead of `Date.now` /
- * `performance.now`. This is the options-level `Clock` (with `setTimeout`);
- * the richer time bundle lives in `time.ts`.
- */
-export interface Clock {
-    now(): number;
-    setTimeout(callback: () => void, delayMs: number): () => void;
-}
+// The canonical `Clock` lives in `time.ts` (with `monotonic()`) and is
+// re-exported from the barrel. The options-level `Clock` shape consumed by
+// protocol packages is imported directly from `time.ts` in `options.ts`; it
+// needs only `now()`, which `time.ts` satisfies.
 
 /**
  * `PacketCallback` — the injected packet-inspection surface.

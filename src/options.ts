@@ -10,10 +10,10 @@ import type {
     Transport,
     DatagramTransport,
     QuicConnection,
-    Clock,
     PacketCallback,
     CookieJar,
 } from "./contracts.js";
+import type { Clock } from "./time.js";
 import type { BrowserProfile, UdpAddress } from "./models.js";
 
 // ===========================================================================
