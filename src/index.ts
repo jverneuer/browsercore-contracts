@@ -104,7 +104,55 @@ export type {
     Net,
     DnsResolver,
     IPAddress,
+    Network,
 } from "./net.js";
+
+// ===========================================================================
+// Events — platform-agnostic event contracts
+// ===========================================================================
+
+export type {
+    EventProvider,
+    TypedEventEmitter,
+} from "./events.js";
+
+// ===========================================================================
+// Telemetry — logging, tracing, metrics
+// ===========================================================================
+
+export type {
+    Logger,
+    Span,
+    Tracer,
+    Metrics,
+    Telemetry,
+} from "./telemetry.js";
+
+// ===========================================================================
+// Time — clock and scheduler
+// ===========================================================================
+
+export type {
+    Duration,
+    Deadline,
+    Scheduler,
+    Time,
+} from "./time.js";
+
+// Note: `Clock` from time.ts is intentionally NOT re-exported here because
+// contracts.ts exports its own `Clock` (with setTimeout) used by legacy
+// options. Consumers building a Platform import Clock directly from
+// "./time.js" — they don't need the barrel.
+
+// ===========================================================================
+// Platform — composition root
+// ===========================================================================
+
+export type {
+    Compression,
+    Crypto,
+    Platform,
+} from "./platform.js";
 
 // ===========================================================================
 // Options — configuration for protocol packages

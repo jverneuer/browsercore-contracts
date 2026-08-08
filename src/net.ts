@@ -9,6 +9,8 @@
  * Design rule: expose only what transport consumes. Don't mirror Node's API.
  */
 
+import type { DatagramTransport } from "./contracts.js";
+
 // ===========================================================================
 // TCP
 // ===========================================================================
@@ -81,4 +83,20 @@ export interface DnsResolver {
      * @returns Resolved addresses (at least one).
      */
     lookup(hostname: string, family: 4 | 6): Promise<readonly IPAddress[]>;
+}
+
+// ===========================================================================
+// Network — aggregated network bundle
+// ===========================================================================
+
+/**
+ * Aggregated network bundle — TCP, DNS, and UDP.
+ *
+ * Passed down from the composition root. Bundles the three network
+ * capabilities so consumers receive one object instead of three.
+ */
+export interface Network {
+    readonly tcp: Net;
+    readonly dns: DnsResolver;
+    readonly udp: DatagramTransport;
 }
