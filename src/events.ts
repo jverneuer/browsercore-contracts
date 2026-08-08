@@ -31,7 +31,7 @@ export interface EventProvider {
  * Consumers define a map of event handlers and get compile-time
  * type safety on `emit` arguments and `on` callbacks.
  */
-export interface TypedEventEmitter<T extends Record<string, (...args: any[]) => void>> {
+export interface TypedEventEmitter<T extends Record<string, (...args: unknown[]) => void>> {
     on<K extends keyof T>(event: K, listener: T[K]): void;
     once<K extends keyof T>(event: K, listener: T[K]): void;
     off<K extends keyof T>(event: K, listener: T[K]): void;
