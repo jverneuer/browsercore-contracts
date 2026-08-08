@@ -247,8 +247,11 @@ export type ContentEncoding = "gzip" | "deflate" | "br" | "identity";
 // IANA TLS Parameter Registries — canonical wire code tables
 // ===========================================================================
 //
-// Single source of truth for TLS protocol wire codes. Both @browsercore/tls
-// and @browsercore/profiles import from here.
+// Single source of truth for TLS protocol wire codes. Both `@browsercore/tls`
+// and `@browsercore/profiles` import from here. These tables are part of the
+// contracts layer — they are consumed by packages that are themselves
+// injected through `Platform`, keeping the entire stack free of hardcoded
+// wire constants.
 
 /** The name Chrome/Edge use in their cipher list to mark a GREASE slot (RFC 8701). */
 export const CIPHER_GREASE_PLACEHOLDER = "TLS_GREASE_RESERVED_0";

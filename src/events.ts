@@ -1,19 +1,23 @@
 /**
- * Platform-agnostic event contracts.
+ * Platform-agnostic event contracts — the injected event surface.
  *
- * These interfaces describe what BrowserCore needs from an event system.
- * They are implemented by thin adapters (e.g. `browsersmith/src/events/node/`)
- * and injected so the protocol stack stays runtime-agnostic.
+ * BrowserCore never inherits from or depends on `node:events.EventEmitter`.
+ * Instead, an `EventProvider` is implemented by a thin runtime adapter
+ * (e.g. `browsersmith/src/events/node/`) and **injected** down through the
+ * `Platform.events` field. The protocol stack calls `on`/`emit` against this
+ * interface — never against a global or a Node builtin.
  *
- * Design rule: expose only what transport/protocol packages consume.
- * Don't mirror Node's EventEmitter API.
+ * Design rule: the interface is defined by what protocol packages *consume*,
+ * not by what any one runtime provides. This keeps every package testable
+ * with a mock emitter and portable across Node, Bun, Deno, and Workers.
  */
 
 /**
- * Minimal event emitter surface — the structural subset of
- * `node:events.EventEmitter` that BrowserCore depends on.
+ * `EventProvider` — the injected event surface for all protocol packages.
  *
- * Any runtime emitter that satisfies these methods can be injected.
+ * This is the contract, not an inheritance hierarchy. Any runtime emitter
+ * that satisfies these methods can be injected via `Platform.events`.
+ * Packages never `extends EventEmitter`; they depend on this structural type.
  */
 export interface EventProvider {
     on(event: string, listener: (...args: unknown[]) => void): void;
@@ -26,10 +30,11 @@ export interface EventProvider {
 }
 
 /**
- * Typed event emitter — maps event names to their listener signatures.
+ * `TypedEventEmitter<T>` — compile-time typed event surface.
  *
- * Consumers define a map of event handlers and get compile-time
- * type safety on `emit` arguments and `on` callbacks.
+ * Consumers define a map of event names to listener signatures and get
+ * type-safe `emit`/`on` calls. This is the typed counterpart to the
+ * untyped `EventProvider` — same injection pattern, stronger guarantees.
  */
 export interface TypedEventEmitter<T extends Record<string, (...args: unknown[]) => void>> {
     on<K extends keyof T>(event: K, listener: T[K]): void;

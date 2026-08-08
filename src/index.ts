@@ -2,17 +2,17 @@
  * @browsercore/contracts — the public SDK surface for the browsercore stack.
  *
  * This package contains every type that defines how BrowserCore components
- * communicate with each other. It is implementation-independent: no node:crypto,
- * node:net, Buffer, curl, OpenSSL, ngtcp2, or any implementation details.
+ * communicate with each other. It is implementation-independent: no `node:crypto`,
+ * `node:net`, `Buffer`, curl, OpenSSL, ngtcp2, or any runtime builtin.
  *
  * Litmus test: "Could another package reasonably import this type?"
  * If yes → belongs here. If only one protocol touches it → stays in that package.
  *
- * Architecture:
+ * Architecture — every interface here is injected through `Platform`:
  *
- *   @browsercore/contracts (this package)
+ *   @browsercore/contracts (this package — defines the contracts)
  *           ▲
- *           │
+ *           │ (depend on, never import from)
  *    ┌──────┼─────────────┐
  *    │      │             │
  *    ▼      ▼             ▼
@@ -20,7 +20,7 @@
  *    │       │             │
  *    └───────┴─────────────┘
  *            ▼
- *      @browsercore/browsersmith
+ *   browsersmith (composition root — builds & threads Platform)
  */
 
 // ===========================================================================

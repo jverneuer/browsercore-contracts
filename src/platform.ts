@@ -34,10 +34,13 @@ import type { Time } from "./time.js";
 // ===========================================================================
 
 /**
- * Synchronous compression/decompression bundle.
+ * `Compression` — the injected synchronous compression bundle (part of `Platform`).
  *
  * Why sync: callers already own the hot path and want predictable latency.
  * Streaming variants belong on the implementation, not the contract.
+ *
+ * Injected as `Platform.compression`; protocol packages receive it through
+ * options, never by importing `node:zlib` directly.
  */
 export interface Compression {
     gzipSync(data: Uint8Array): Uint8Array;
@@ -54,7 +57,11 @@ export interface Compression {
 // ===========================================================================
 
 /**
- * Aggregated crypto bundle — wraps CryptoProvider.
+ * `Crypto` — the injected crypto bundle (part of `Platform`).
+ *
+ * Wraps `CryptoProvider` for injection. `browsersmith` populates this from
+ * `@browsercore/crypto`; protocol packages reach it through options, never
+ * by importing `node:crypto` directly.
  */
 export interface Crypto {
     readonly provider: CryptoProvider;
@@ -65,10 +72,12 @@ export interface Crypto {
 // ===========================================================================
 
 /**
- * Platform — the single composition root for all runtime services.
+ * `Platform` — the single composition root for all runtime services.
  *
- * Every protocol package receives the fields it needs. No package
- * hardwires node:* imports; all capabilities arrive via this object.
+ * Assembled **once** by `browsersmith` (the only package with `node:*`
+ * imports) and threaded down through options to every protocol package.
+ * No package hardwires runtime imports; all capabilities arrive via this
+ * object. This is the seam that makes BrowserCore portable and testable.
  */
 export interface Platform {
     readonly network: Network;
