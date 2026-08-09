@@ -23,11 +23,8 @@
  * and zero node:* imports.
  */
 
-import type { Network } from "./tcp-transport.js";
-import type { Net, DnsResolver } from "./tcp-transport.js";
-import type { CryptoProvider } from "./contracts.js";
-import type { CompressionProvider } from "./contracts.js";
-import type { DatagramTransport } from "./contracts.js";
+import type { Network, Net, DnsResolver } from "./tcp-transport.js";
+import type { CryptoProvider, CompressionProvider, DatagramTransport } from "./contracts.js";
 import type { EventProvider } from "./events.js";
 import type { Telemetry } from "./telemetry.js";
 import type { Time } from "./time.js";
