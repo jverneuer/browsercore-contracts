@@ -1,13 +1,15 @@
 /**
- * Platform-agnostic time contracts.
+ * Platform-agnostic time contracts — the injected time surface.
  *
- * These interfaces describe what BrowserCore needs from a runtime's
- * time and scheduling facilities. They are implemented by thin adapters
- * (e.g. `browsersmith/src/time/node/`) and injected so protocol packages
- * can schedule delays, timeouts, and deadlines without hardwiring to
- * `setTimeout` or `performance.now`.
+ * These interfaces describe what BrowserCore needs from a runtime's time and
+ * scheduling facilities. They are implemented by thin adapters (e.g.
+ * `browsersmith/src/time/node/`) and **injected** as `Platform.time`. Protocol
+ * packages call `clock.now()` / `scheduler.delay()` against these interfaces —
+ * never against `setTimeout` or `performance.now` directly — so the stack
+ * stays runtime-agnostic and deterministically testable.
  *
- * Design rule: expose only what transport/protocol packages consume.
+ * Design rule: the interface is defined by what packages *consume*, not by
+ * what any one runtime provides.
  */
 
 /**
@@ -52,7 +54,10 @@ export interface Scheduler {
 }
 
 /**
- * Aggregated time bundle — passed down from the composition root.
+ * `Time` — the injected time bundle (part of `Platform`).
+ *
+ * Aggregates `Clock` and `Scheduler` into a single object that `browsersmith`
+ * assembles and passes down through `Platform.time`.
  */
 export interface Time {
     readonly clock: Clock;
@@ -64,8 +69,10 @@ export interface Time {
 // ===========================================================================
 
 /**
- * Duration factory — pure function object, no runtime deps.
- * Platform implementations use this to build Duration values.
+ * `Duration` factory — pure function object, no runtime deps.
+ *
+ * Platform implementations use this to build `Duration` values; protocol
+ * packages treat durations as opaque data. Pure data, no injection needed.
  */
 export const Duration = {
     seconds: (n: number): Duration => ({ milliseconds: n * 1000, seconds: () => n }),

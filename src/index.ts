@@ -2,17 +2,17 @@
  * @browsercore/contracts — the public SDK surface for the browsercore stack.
  *
  * This package contains every type that defines how BrowserCore components
- * communicate with each other. It is implementation-independent: no node:crypto,
- * node:net, Buffer, curl, OpenSSL, ngtcp2, or any implementation details.
+ * communicate with each other. It is implementation-independent: no `node:crypto`,
+ * `node:net`, `Buffer`, curl, OpenSSL, ngtcp2, or any runtime builtin.
  *
  * Litmus test: "Could another package reasonably import this type?"
  * If yes → belongs here. If only one protocol touches it → stays in that package.
  *
- * Architecture:
+ * Architecture — every interface here is injected through `Platform`:
  *
- *   @browsercore/contracts (this package)
+ *   @browsercore/contracts (this package — defines the contracts)
  *           ▲
- *           │
+ *           │ (depend on, never import from)
  *    ┌──────┼─────────────┐
  *    │      │             │
  *    ▼      ▼             ▼
@@ -20,7 +20,7 @@
  *    │       │             │
  *    └───────┴─────────────┘
  *            ▼
- *      @browsercore/browsersmith
+ *   browsersmith (composition root — builds & threads Platform)
  */
 
 // ===========================================================================
@@ -44,7 +44,6 @@ export type {
     FetchClient,
     CookieJar,
     // Cross-cutting
-    Clock,
     PacketCallback,
     PacketInspectionOptions,
 } from "./contracts.js";
@@ -95,7 +94,7 @@ export {
 } from "./models.js";
 
 // ===========================================================================
-// Net — platform-agnostic TCP + DNS contracts
+// TcpTransport — platform-agnostic TCP + DNS contracts
 // ===========================================================================
 
 export type {
@@ -105,7 +104,7 @@ export type {
     DnsResolver,
     IPAddress,
     Network,
-} from "./net.js";
+} from "./tcp-transport.js";
 
 // ===========================================================================
 // Events — platform-agnostic event contracts
@@ -133,16 +132,14 @@ export type {
 // ===========================================================================
 
 export type {
-    Duration,
+    Clock,
     Deadline,
     Scheduler,
     Time,
 } from "./time.js";
 
-// Note: `Clock` from time.ts is intentionally NOT re-exported here because
-// contracts.ts exports its own `Clock` (with setTimeout) used by legacy
-// options. Consumers building a Platform import Clock directly from
-// "./time.js" — they don't need the barrel.
+/** Duration static factories — `Duration.seconds(5)`, `Duration.milliseconds(250)`. */
+export { Duration } from "./time.js";
 
 // ===========================================================================
 // Platform — composition root
@@ -152,6 +149,7 @@ export type {
     Compression,
     Crypto,
     Platform,
+    PlatformOptions,
 } from "./platform.js";
 
 // ===========================================================================

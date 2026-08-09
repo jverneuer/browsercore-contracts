@@ -29,10 +29,14 @@ import type {
 // ===========================================================================
 
 /**
- * Cryptographic primitive abstraction.
- * Implemented by: @browsercore/crypto
+ * `CryptoProvider` — the injected cryptographic primitive surface.
  *
- * Why here: Every protocol package needs crypto operations.
+ * Implemented by: `@browsercore/crypto`
+ *
+ * Why here: Every protocol package needs crypto operations. The provider is
+ * assembled into `Platform.crypto` by the composition root (`browsersmith`)
+ * and threaded down through options — no protocol package imports
+ * `node:crypto` or any runtime builtin directly.
  */
 export interface CryptoProvider {
     randomBytes(length: number): Uint8Array;
@@ -57,21 +61,56 @@ export interface CryptoProvider {
 }
 
 /**
- * Compression/decompression abstraction.
- * Implemented by: @browsercore/compression
+ * `CompressionProvider` — the injected compression surface.
  *
- * Why here: HTTP/1 and HTTP/2 both need compression.
+ * Implemented by: `@browsercore/compression`
+ *
+ * Why here: HTTP/1 and HTTP/2 both need compression. Provided via
+ * `Platform.compression` and passed down through options — protocols never
+ * bind to `node:zlib` directly. All operations are synchronous and
+ * unit-testable. Portable across backends (node:zlib, WebCompressionStream,
+ * wasm brotli).
+ *
+ * The async `encode/decode(ContentEncoding)` shape had zero consumers and is
+ * dropped. This sync shape is the single source of truth.
  */
 export interface CompressionProvider {
-    encode(encoding: ContentEncoding, data: Uint8Array): Promise<Uint8Array>;
-    decode(encoding: ContentEncoding, data: Uint8Array): Promise<Uint8Array>;
+    /** Compress `data` with gzip. */
+    gzip(data: Uint8Array): Uint8Array;
+    /** Decompress a gzip-encoded `data`. */
+    gunzip(data: Uint8Array): Uint8Array;
+
+    /** Compress `data` with zlib-wrapped deflate. */
+    deflate(data: Uint8Array): Uint8Array;
+    /** Decompress a zlib-wrapped deflate `data`. */
+    inflate(data: Uint8Array): Uint8Array;
+
+    /** Decompress a raw (headerless) deflate `data`. */
+    inflateRaw(data: Uint8Array): Uint8Array;
+
+    /** Compress `data` with brotli. */
+    brotliCompress(data: Uint8Array): Uint8Array;
+    /** Decompress a brotli-encoded `data`. */
+    brotliDecompress(data: Uint8Array): Uint8Array;
+
+    /** Decompress a body according to a `content-encoding` header value. */
+    decompress(data: Uint8Array, encoding: ContentEncoding): Uint8Array;
 }
 
 /**
- * Reliable ordered byte stream abstraction (TCP).
- * Implemented by: @browsercore/transport
+ * `Transport` — the injected reliable byte stream (TCP).
  *
- * Why here: TLS, HTTP/1, HTTP/2 all consume Transport.
+ * Implemented by: `@browsercore/transport`
+ *
+ * Why here: TLS, HTTP/1, HTTP/2 all consume `Transport`. It is created by the
+ * injected `Platform.network.tcp` adapter and passed down through options —
+ * never constructed by the protocols themselves.
+ *
+ * Event methods (`on`/`once`) are typed narrowly for stream semantics
+ * (`data`, `close`, `error`) rather than using the generic `EventProvider`:
+ * a Transport is a typed stream, not a generic bus. The *transport package*
+ * still receives its events via `Platform.events` internally; these methods
+ * are the public stream surface for protocol consumers.
  */
 export interface Transport {
     readonly id: string;
@@ -88,10 +127,13 @@ export interface Transport {
 }
 
 /**
- * Datagram transport abstraction (UDP).
- * Implemented by: @browsercore/transport
+ * `DatagramTransport` — the injected UDP datagram surface.
  *
- * Why here: QUIC consumes DatagramTransport.
+ * Implemented by: `@browsercore/transport`
+ *
+ * Why here: QUIC consumes `DatagramTransport`. Like `Transport`, it is
+ * obtained from `Platform.network.udp` and passed down through options —
+ * protocol packages never bind to a runtime socket directly.
  */
 export interface DatagramTransport {
     readonly id: string;
@@ -105,10 +147,13 @@ export interface DatagramTransport {
 // ===========================================================================
 
 /**
- * TLS connection abstraction.
- * Implemented by: @browsercore/tls
+ * `TlsConnection` — the injected TLS connection surface.
  *
- * Why here: fetch consumes TlsConnection.
+ * Implemented by: `@browsercore/tls`
+ *
+ * Why here: fetch consumes `TlsConnection`. The TLS package receives its
+ * injected dependencies (transport, crypto, events) through `TlsOptions`,
+ * which is populated from the `Platform` composition root.
  */
 export interface TlsConnection {
     readonly id: string;
@@ -120,10 +165,12 @@ export interface TlsConnection {
 }
 
 /**
- * HTTP/1 connection abstraction.
- * Implemented by: @browsercore/http1
+ * `Http1Connection` — the injected HTTP/1 connection surface.
  *
- * Why here: fetch consumes Http1Connection.
+ * Implemented by: `@browsercore/http1`
+ *
+ * Why here: fetch consumes `Http1Connection`. The package receives its
+ * injected transport and profile through `Http1Options`.
  */
 export interface Http1Connection {
     readonly id: string;
@@ -132,10 +179,12 @@ export interface Http1Connection {
 }
 
 /**
- * HTTP/2 connection abstraction.
- * Implemented by: @browsercore/http2
+ * `Http2Connection` — the injected HTTP/2 connection surface.
  *
- * Why here: fetch consumes Http2Connection.
+ * Implemented by: `@browsercore/http2`
+ *
+ * Why here: fetch consumes `Http2Connection`. The package receives its
+ * injected transport and profile through `Http2Options`.
  */
 export interface Http2Connection {
     readonly id: string;
@@ -145,10 +194,13 @@ export interface Http2Connection {
 }
 
 /**
- * HTTP/3 connection abstraction.
- * Implemented by: @browsercore/http3
+ * `Http3Connection` — the injected HTTP/3 connection surface.
  *
- * Why here: fetch consumes Http3Connection.
+ * Implemented by: `@browsercore/http3`
+ *
+ * Why here: fetch consumes `Http3Connection`. Built on top of
+ * `QuicConnection`; receives its injected QUIC transport through
+ * `Http3Options`.
  */
 export interface Http3Connection {
     readonly id: string;
@@ -158,10 +210,13 @@ export interface Http3Connection {
 }
 
 /**
- * QUIC connection abstraction.
- * Implemented by: @browsercore/quic
+ * `QuicConnection` — the injected QUIC connection surface.
  *
- * Why here: HTTP/3 consumes QuicConnection.
+ * Implemented by: `@browsercore/quic`
+ *
+ * Why here: HTTP/3 consumes `QuicConnection`. The package receives its
+ * injected UDP transport and crypto through `QuicOptions`, populated from
+ * `Platform`.
  */
 export interface QuicConnection {
     readonly id: string;
@@ -176,9 +231,11 @@ export interface QuicConnection {
 }
 
 /**
- * QUIC stream abstraction.
+ * `QuicStream` — an injected QUIC stream handle.
  *
- * Why here: QuicConnection returns QuicStream, HTTP/3 uses it.
+ * Why here: `QuicConnection` returns `QuicStream`; HTTP/3 uses it for
+ * request multiplexing. Streams are owned by the QUIC package and carry no
+ * direct runtime dependency.
  */
 export interface QuicStream {
     readonly id: bigint;
@@ -192,10 +249,13 @@ export interface QuicStream {
 // ===========================================================================
 
 /**
- * High-level fetch client.
- * Implemented by: @browsercore/fetch
+ * `FetchClient` — the injected high-level fetch surface.
  *
- * Why here: browsersmith consumes FetchClient.
+ * Implemented by: `@browsercore/fetch`
+ *
+ * Why here: browsersmith consumes `FetchClient`. Assembled from the
+ * protocol connections and injected services (`CookieJar`, transport, crypto)
+ * via `FetchClientOptions`, which `browsersmith` populates from `Platform`.
  */
 export interface FetchClient {
     fetch(url: string, options?: FetchOptions): Promise<FetchResponse>;
@@ -203,10 +263,13 @@ export interface FetchClient {
 }
 
 /**
- * Cookie jar abstraction.
- * Implemented by: @browsercore/cookies
+ * `CookieJar` — the injected cookie storage surface.
  *
- * Why here: fetch and browsersmith both use CookieJar.
+ * Implemented by: `@browsercore/cookies`
+ *
+ * Why here: fetch and browsersmith both use `CookieJar`. Provided via
+ * `FetchClientOptions.cookieJar`, populated from `Platform` or a custom
+ * implementation — never hardcoded to a runtime store.
  */
 export interface CookieJar {
     getCookies(url: string): readonly Cookie[];
@@ -220,21 +283,17 @@ export interface CookieJar {
 // Cross-cutting Contracts
 // ===========================================================================
 
-/**
- * Time-source abstraction.
- * Injected for deterministic tests.
- *
- * Why here: Every protocol package needs time.
- */
-export interface Clock {
-    now(): number;
-    setTimeout(callback: () => void, delayMs: number): () => void;
-}
+// The canonical `Clock` lives in `time.ts` (with `monotonic()`) and is
+// re-exported from the barrel. The options-level `Clock` shape consumed by
+// protocol packages is imported directly from `time.ts` in `options.ts`; it
+// needs only `now()`, which `time.ts` satisfies.
 
 /**
- * Packet inspection callback.
+ * `PacketCallback` — the injected packet-inspection surface.
  *
- * Why here: Protocol packages emit frames, consumers receive them.
+ * Why here: Protocol packages emit frames for inspection/debugging. The
+ * callback is passed through options (never a global), so consumers like
+ * browsersmith wire it up without coupling protocols to a tracing backend.
  */
 export type PacketCallback = (frame: ProtocolFrame) => void;
 

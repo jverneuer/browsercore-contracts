@@ -1,12 +1,15 @@
 /**
- * Platform-agnostic TCP and DNS contracts.
+ * Platform-agnostic TCP and DNS contracts — the injected network surface.
  *
  * These interfaces describe exactly what BrowserCore needs from a runtime —
- * nothing more. They are implemented by thin adapters (e.g. `browsersmith/src/net/node/`)
- * and injected into @browsercore/transport so the protocol stack stays
+ * nothing more. They are implemented by thin adapters (e.g.
+ * `browsersmith/src/net/node/`) and **injected** through `Platform.network`,
+ * never imported directly by protocol packages. This keeps the stack
  * runtime-agnostic (Node, Bun, Deno, Cloudflare Workers, mocks).
  *
- * Design rule: expose only what transport consumes. Don't mirror Node's API.
+ * Design rule: the interface is defined by what transport *consumes*, not by
+ * what any one runtime provides. Packages depend on this contract; runtimes
+ * adapt to it.
  */
 
 import type { DatagramTransport } from "./contracts.js";
@@ -30,10 +33,16 @@ export interface ConnectOptions {
 }
 
 /**
- * A connected TCP socket — the minimal surface transport needs.
+ * `Socket` — the injected TCP socket surface.
  *
- * This is a structural subset of `node:net.Socket`. Any runtime socket that
- * satisfies these methods can be passed to BrowserCore.
+ * This is the contract that runtime adapters (Node, Bun, Deno, Workers)
+ * must satisfy — defined by what `@browsercore/transport` *consumes*, not by
+ * any one runtime's socket API. A socket is obtained via `Net.connect()`
+ * (itself injected through `Platform.network.tcp`) and passed into transport,
+ * never constructed by transport directly.
+ *
+ * Any runtime socket that satisfies these methods can be injected — no
+ * inheritance from a built-in class required.
  */
 export interface Socket {
     /**
@@ -90,10 +99,12 @@ export interface DnsResolver {
 // ===========================================================================
 
 /**
- * Aggregated network bundle — TCP, DNS, and UDP.
+ * `Network` — the injected network bundle (part of `Platform`).
  *
- * Passed down from the composition root. Bundles the three network
- * capabilities so consumers receive one object instead of three.
+ * Aggregates `Net`, `DnsResolver`, and `DatagramTransport` into a single
+ * object that `browsersmith` assembles and passes down through
+ * `Platform.network`. Protocol packages never import `node:net` /
+ * `node:dgram` directly.
  */
 export interface Network {
     readonly tcp: Net;
