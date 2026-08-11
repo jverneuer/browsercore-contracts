@@ -64,6 +64,30 @@ export interface TlsProfile {
     readonly supportedVersions: readonly number[];
     readonly extensionOrder: readonly number[];
     readonly grease: boolean;
+    /**
+     * EC point formats extension (RFC 8422 §5.1.2) — wire codes offered to the
+     * peer. 0 = uncompressed, 1 = ansiX962_compressed_prime.
+     * Chrome reference: [1, 0].
+     */
+    readonly ecPointFormats?: readonly number[];
+    /**
+     * Algorithms advertised in the compress_certificate extension (RFC 8879).
+     * 2 = brotli, 1 = zlib, 0 = none.
+     * Chrome reference: [2].
+     */
+    readonly compressCertificateAlgorithms?: readonly number[];
+    /**
+     * Bytes of padding added to each TLS record to align it to a boundary
+     * (RFC 7685). Omit or use 0 for no padding.
+     * Chrome reference: 16.
+     */
+    readonly recordPadding?: number;
+    /**
+     * Named groups to offer in the key_share extension, in priority order.
+     * Sent as canonical names (x25519, secp256r1, …) — see {@link NAMED_GROUP_CODES}.
+     * Chrome reference: ["x25519", "secp256r1"].
+     */
+    readonly keyShareGroups?: readonly string[];
 }
 
 /**
@@ -73,6 +97,20 @@ export interface Http1Profile {
     readonly userAgent: string;
     readonly headerOrder: readonly string[];
     readonly connectionSettings: ReadonlyMap<string, string>;
+    /**
+     * Header name casing policy applied when serialising request headers.
+     * "lowercase" (HTTP-spec default), "title" (e.g. `Content-Type`), or
+     * "original" (preserve caller-supplied casing).
+     * Chrome reference: "title" — case-preserving for specific headers.
+     */
+    readonly headerCasing?: "lowercase" | "title" | "original";
+    /**
+     * Per-header casing overrides keyed by canonical (lowercase) name. Takes
+     * precedence over `headerCasing`; used by browsers that case most headers
+     * lower but title-case a select few.
+     * Chrome reference: { etag: "ETag", "www-authenticate": "WWW-Authenticate" }.
+     */
+    readonly defaultHeadersCased?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -83,6 +121,84 @@ export interface Http2Profile {
     readonly headerOrder: readonly string[];
     readonly initialWindowSize: number;
     readonly maxFrameSize: number;
+    /**
+     * Wire order in which SETTINGS parameters are emitted in the client
+     * preface (RFC 7540 §6.5). Each entry is a SETTINGS identifier
+     * (1 = HEADER_TABLE_SIZE, 2 = ENABLE_PUSH, 3 = MAX_CONCURRENT_STREAMS,
+     * 4 = INITIAL_WINDOW_SIZE, 5 = MAX_FRAME_SIZE, 6 = MAX_HEADER_LIST_SIZE).
+     * Chrome reference: [1, 2, 4, 3] (GREASE interspersed when `grease` is set).
+     */
+    readonly settingsOrder?: readonly number[];
+    /**
+     * Insert GREASE (RFC 8701) values into the SETTINGS frame and pseudo-header
+     * framing so the byte pattern matches a real browser.
+     * Chrome reference: true.
+     */
+    readonly grease?: boolean;
+    /**
+     * Increment sent via the initial WINDOW_UPDATE on stream 0 (the
+     * connection) after the client preface.
+     * Chrome reference: 12517377.
+     */
+    readonly connectionWindowUpdate?: number;
+    /**
+     * Emitted order of HTTP/2 pseudo-headers. Each entry is a pseudo-header
+     * name including the leading colon (`:method`, `:path`, `:scheme`,
+     * `:authority`).
+     * Chrome reference: [":method", ":authority", ":scheme", ":path"].
+     */
+    readonly pseudoHeaderOrder?: readonly string[];
+    /**
+     * HPACK (RFC 7541) encoder tuning — controls the dynamic table, Huffman
+     * coding, and indexing strategy so compressed header bytes match a target
+     * browser.
+     */
+    readonly hpack?: HpackProfile;
+    /**
+     * PRIORITY / HEADERS-with-priority frames emitted before the first DATA
+     * frame, defining the stream dependency tree (RFC 7540 §5.3).
+     * Chrome reference: empty for modern HTTP/2 (priority signalling is deprecated).
+     */
+    readonly priorityFrames?: readonly Http2PriorityFrame[];
+}
+
+/**
+ * HPACK (RFC 7541) encoder profile.
+ *
+ * Why here: http2 encodes headers and profiles (browser fingerprint packages)
+ * both describe the encoder behaviour, so the shape is shared here.
+ */
+export interface HpackProfile {
+    /** Dynamic table size in bytes (SETTINGS_HEADER_TABLE_SIZE). Chrome reference: 4096. */
+    readonly maxTableSize: number;
+    /** Huffman-encode literal header field values. Chrome reference: true. */
+    readonly useHuffman: boolean;
+    /** Index literal header fields into the dynamic table when permitted. Chrome reference: true. */
+    readonly useIndexing: boolean;
+    /**
+     * Header names (lowercase) that must be sent as never-indexed literals
+     * (HPACK "never indexed" literal, RFC 7541 §6.2.3).
+     * Chrome reference: ["authorization", "cookie"].
+     */
+    readonly neverIndex: readonly string[];
+}
+
+/**
+ * An HTTP/2 PRIORITY frame — declares a stream's place in the dependency
+ * tree (RFC 7540 §5.3 / §6.3).
+ *
+ * Why here: http2 emits these and profiles (browser fingerprint packages)
+ * both describe the dependency weighting, so the shape is shared here.
+ */
+export interface Http2PriorityFrame {
+    /** Stream the priority applies to. */
+    readonly streamId: number;
+    /** Stream that this stream depends on. 0 = root (no dependency). */
+    readonly streamDependency: number;
+    /** Whether the dependency is exclusive — lower-weight streams are reprioritised below it. */
+    readonly exclusive: boolean;
+    /** Relative scheduling weight (1–256, wire-encoded as value−1). */
+    readonly weight: number;
 }
 
 // ===========================================================================
