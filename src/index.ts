@@ -60,6 +60,8 @@ export type {
     TlsProfile,
     Http1Profile,
     Http2Profile,
+    HpackProfile,
+    Http2PriorityFrame,
     // HTTP messages
     Request,
     Response,
