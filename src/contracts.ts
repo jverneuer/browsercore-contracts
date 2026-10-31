@@ -22,6 +22,7 @@ import type {
     TlsState,
     UdpAddress,
     X25519KeyPair,
+    MLKEM768KeyPair,
 } from "./models.js";
 
 // ===========================================================================
@@ -58,6 +59,33 @@ export interface CryptoProvider {
     ecdhSharedSecret(curve: EcdhCurve, secretKey: Uint8Array, peerPublicKey: Uint8Array): Uint8Array;
     verifySignature(scheme: string, publicKey: Uint8Array, signature: Uint8Array, data: Uint8Array): boolean;
     aesEcbEncrypt(key: Uint8Array, block: Uint8Array): Uint8Array;
+    /**
+     * Generate an ML-KEM-768 key pair (FIPS 203, formerly Kyber).
+     *
+     * The public key (encapsulation key) is sent in the TLS 1.3
+     * `X25519MLKEM768` key-share entry; the secret key (decapsulation key)
+     * is held locally to recover the shared secret from the peer's ciphertext.
+     */
+    mlkem768GenerateKeyPair(): MLKEM768KeyPair;
+    /**
+     * ML-KEM-768 decapsulation — recover the 32-byte shared secret from a
+     * ciphertext produced by the peer's encapsulation.
+     */
+    mlkem768Decapsulate(secretKey: Uint8Array, ciphertext: Uint8Array): Uint8Array;
+    /**
+     * Compute the TLS 1.3 `X25519MLKEM768` hybrid shared secret.
+     *
+     * Per draft-ietf-tls-ecdhe-mlkem, the post-quantum and classical shared
+     * secrets are concatenated — `mlkem_shared_secret || x25519_shared_secret`
+     * (post-quantum first) — and the 64-byte result is fed into the TLS 1.3
+     * key schedule. Order verified against OpenSSL's X25519MLKEM768 peer.
+     */
+    x25519MLKEM768SharedSecret(
+        x25519SecretKey: Uint8Array,
+        x25519PeerPublicKey: Uint8Array,
+        mlkemSecretKey: Uint8Array,
+        mlkemCiphertext: Uint8Array,
+    ): Uint8Array;
 }
 
 /**

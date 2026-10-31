@@ -75,6 +75,7 @@ export type {
     HashId,
     EcdhCurve,
     X25519KeyPair,
+    MLKEM768KeyPair,
     EcdhKeyPair,
     // Transport types
     UdpAddress,
