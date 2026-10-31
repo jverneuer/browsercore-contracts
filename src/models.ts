@@ -313,6 +313,18 @@ export interface X25519KeyPair {
     readonly secretKey: Uint8Array;
 }
 
+/**
+ * ML-KEM-768 (FIPS 203) key pair.
+ *
+ * `publicKey` is the 1184-byte encapsulation key sent in the TLS 1.3
+ * `X25519MLKEM768` key-share entry; `secretKey` is the 2400-byte decapsulation
+ * key held locally to recover the shared secret from the peer's ciphertext.
+ */
+export interface MLKEM768KeyPair {
+    readonly publicKey: Uint8Array;
+    readonly secretKey: Uint8Array;
+}
+
 export interface EcdhKeyPair {
     readonly curve: EcdhCurve;
     readonly publicKey: Uint8Array;

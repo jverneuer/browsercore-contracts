@@ -1,6 +1,6 @@
 {
     "name": "@browsercore/contracts",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "description": "Shared interfaces, models, and options for the browsercore stack",
     "repository": {
         "type": "git",
@@ -41,7 +41,7 @@
         "@types/node": "^26.1.2",
         "@vitest/coverage-v8": "^4.1.10",
         "oxlint": "^1.76.0",
-        "oxlint-tsgolint": "7.0.2001",
+        "oxlint-tsgolint": "7.0.2005",
         "typescript": "^7.0.2",
         "vitest": "^4.1.10"
     }
