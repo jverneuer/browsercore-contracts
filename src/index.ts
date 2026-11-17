@@ -33,15 +33,7 @@ export type {
     CompressionProvider,
     Transport,
     DatagramTransport,
-    // Protocol connections
-    TlsConnection,
-    Http1Connection,
-    Http2Connection,
-    Http3Connection,
-    QuicConnection,
-    QuicStream,
     // Client contracts
-    FetchClient,
     CookieJar,
     // Cross-cutting
     PacketCallback,
@@ -155,15 +147,8 @@ export type {
     PlatformOptions,
 } from "./platform.js";
 
-// ===========================================================================
-// Options — configuration for protocol packages
-// ===========================================================================
-
-export type {
-    TlsOptions,
-    Http1Options,
-    Http2Options,
-    Http3Options,
-    QuicOptions,
-    FetchClientOptions,
-} from "./options.js";
+// The former Options layer (TlsOptions/Http1Options/…/FetchClientOptions) and
+// the Protocol Connection Contracts (TlsConnection/Http1Connection/…
+// /QuicConnection/QuicStream/FetchClient) were removed: zero consumers
+// repo-wide, every consumer binds implementation-local types
+// (replaceability audit 2026-11-16).

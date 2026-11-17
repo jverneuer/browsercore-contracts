@@ -35,8 +35,17 @@ export interface EventProvider {
  * Consumers define a map of event names to listener signatures and get
  * type-safe `emit`/`on` calls. This is the typed counterpart to the
  * untyped `EventProvider` — same injection pattern, stronger guarantees.
+ *
+ * The constraint uses `(...args: never[]) => void`: `never` is the bottom
+ * type, so by contravariance ANY listener signature satisfies it
+ * (`(x: number) => void`, `() => void`, …). The former `unknown[]`
+ * constraint rejected every map with typed parameters — i.e. the exact
+ * pattern this interface documents — while `any[]` (the original) is banned
+ * by the coding standards. `never[]` is the no-`any` way to say "any
+ * listener shape" (corrected with the 2026-11-16 test-rot fix; the tests
+ * had never been typechecked against this constraint).
  */
-export interface TypedEventEmitter<T extends Record<string, (...args: unknown[]) => void>> {
+export interface TypedEventEmitter<T extends Record<string, (...args: never[]) => void>> {
     on<K extends keyof T>(event: K, listener: T[K]): void;
     once<K extends keyof T>(event: K, listener: T[K]): void;
     off<K extends keyof T>(event: K, listener: T[K]): void;

@@ -6,10 +6,13 @@
 
 The canonical interface package for the browsercore stack. Every protocol
 package, runtime adapter, and consumer depends on these contracts — they
-define how components communicate without coupling them to each other. This is
-now the single source of truth for **all** cross-package interfaces, including
-the `Platform` service contracts (events, time, telemetry, network, crypto,
-compression).
+define how components communicate without coupling them to each other. As of
+0.2.5 this is the canonical single definition for `Transport`,
+`CryptoProvider`, and `CompressionProvider` (the implementing packages
+re-export them), plus the `Platform` service contracts (events, time,
+telemetry, network). A few deliberately package-local surfaces remain
+duplicated (e.g. `CookieJar`, per-package `Clock` shapes) — converging them is
+tracked separately.
 
 ## Why this package exists
 
@@ -21,8 +24,9 @@ cross-package interface here, a type error becomes a compile error the moment
 any package diverges.
 
 **Alternative implementations welcome.** The contracts define exactly what a
-component must satisfy — nothing more. Want to write a different TLS engine?
-Implement `TlsConnection`. A different transport? Implement `Transport`. A
+component must satisfy — nothing more. Want to write a different transport?
+Implement `Transport`. A different crypto backend? Implement
+`CryptoProvider` (synchronous — WebCrypto cannot satisfy it). A
 different runtime (Bun, Deno, Workers)? Implement the `Platform` service
 interfaces. The contracts are the spec; the packages are the reference
 implementations.
@@ -56,15 +60,23 @@ compression, events, telemetry, time) down through options.
 
 | Module | Purpose | Key exports |
 |---|---|---|
-| **Contracts** | Provider + connection interfaces that protocol packages implement | `CryptoProvider`, `CompressionProvider`, `Transport`, `DatagramTransport`, `TlsConnection`, `Http1Connection`, `Http2Connection`, `Http3Connection`, `QuicConnection`, `QuicStream`, `FetchClient`, `CookieJar`, `PacketCallback` |
+| **Contracts** | Canonical provider interfaces — the single definitions the implementing packages re-export | `CryptoProvider`, `CompressionProvider`, `Transport`, `DatagramTransport`, `CookieJar`, `PacketCallback` |
 | **Platform** | The composition root + per-service bundles | `Platform`, `PlatformOptions`, `Network`, `Crypto`, `Compression` |
-| **Events** | EventTarget-backed emitter abstraction | `EventProvider`, `TypedEventEmitter<T>` |
+| **Events** | Structural emitter interface (a method surface, **not** EventTarget-backed) injected via `Platform.events` | `EventProvider`, `TypedEventEmitter<T>` |
 | **Time** | Clock + scheduler with composable deadlines | `Clock`, `Duration`, `Scheduler`, `Deadline`, `Time` |
 | **Telemetry** | OTel-aligned observability | `Logger`, `Tracer`, `Span`, `Metrics`, `Telemetry` |
 | **Models** | Shared data structures that cross package boundaries | `BrowserProfile`, `TlsProfile`, `Http1Profile`, `Http2Profile`, `Request`, `Response`, `Headers`, `Cookie`, `TransportState`, `CloseReason`, `ContentEncoding` |
 | **Net** | Platform-agnostic TCP + DNS contracts for runtime portability | `Net`, `DnsResolver`, `Socket`, `ConnectOptions`, `IPAddress` |
-| **Options** | Configuration objects passed to each protocol package | `TlsOptions`, `Http1Options`, `Http2Options`, `Http3Options`, `QuicOptions`, `FetchClientOptions` |
 | **IANA Tables** | Canonical TLS wire code lookup tables (single source of truth) | `CIPHER_SUITE_CODES`, `NAMED_GROUP_CODES`, `SIGNATURE_SCHEME_CODES`, `VERSION_CODES` |
+
+The former "Protocol Connection Contracts" (`TlsConnection`, `Http1Connection`,
+`Http2Connection`, `Http3Connection`, `QuicConnection`, `QuicStream`,
+`FetchClient`) and the Options layer (`TlsOptions` … `FetchClientOptions`) were
+removed in 0.2.5: they had zero consumers — every consumer binds the
+implementation-local types exported by the protocol packages themselves
+(replaceability audit, 2026-11-16). `Transport` and `CryptoProvider` here are
+now the canonical single definitions that `@browsercore/transport` and
+`@browsercore/crypto` re-export.
 
 ## Usage
 
@@ -107,8 +119,11 @@ class MyCustomTransport implements Transport {
 3. **No Node built-ins.** Types reference only portable primitives:
    `string`, `number`, `Uint8Array`, `Promise`, `IterableIterator`.
 
-4. **Branded types for IDs.** `ProfileId`, `StreamId`, `ConnectionId` etc.
-   are opaque branded types, not bare `string`/`number`.
+4. **Branded types live in the implementing packages.** Opaque ID brands
+   (`TransportId` in transport, `ConnectionId` in quic, `CryptoSessionId` in
+   crypto) are defined per-package and stay assignable to the plain
+   `string`/`number` fields here. Contracts itself ships plain aliases —
+   `ProfileId` is a plain `string`, not a brand.
 
 5. **Discriminated unions for state.** `TransportState`, `CloseReason`,
    `TlsState` model every valid state explicitly — invalid combinations

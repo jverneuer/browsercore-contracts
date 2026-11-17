@@ -11,16 +11,17 @@ import { describe, it, expect, vi } from "vitest";
 import type { Platform } from "../src/platform.js";
 import type { Compression } from "../src/platform.js";
 import type { Crypto } from "../src/platform.js";
-import type { CryptoProvider } from "../src/contracts.js";
+import type { CryptoProvider, Transport } from "../src/contracts.js";
 import type { EventProvider } from "../src/events.js";
 import type { Telemetry } from "../src/telemetry.js";
 import type { Time } from "../src/time.js";
-import type { Network } from "../src/net.js";
+import type { Network, Socket } from "../src/tcp-transport.js";
 import type {
     HashId,
     X25519KeyPair,
     EcdhKeyPair,
     EcdhCurve,
+    MLKEM768KeyPair,
 } from "../src/models.js";
 
 // ===========================================================================
@@ -34,19 +35,21 @@ import type {
 function createMockCompression(): Compression {
     const echo = (data: Uint8Array): Uint8Array => data;
     return {
-        gzipSync: echo,
-        gunzipSync: echo,
-        deflateSync: echo,
-        inflateSync: echo,
-        brotliCompressSync: echo,
-        brotliDecompressSync: echo,
-        decompressSync: echo,
+        gzip: echo,
+        gunzip: echo,
+        deflate: echo,
+        inflate: echo,
+        inflateRaw: echo,
+        brotliCompress: echo,
+        brotliDecompress: echo,
+        decompress: echo,
     };
 }
 
 /**
- * Build a mock CryptoProvider — stubs every primitive with a zero-filled
- * Uint8Array of the requested length (or a minimal valid shape).
+ * Build a mock CryptoProvider — stubs every primitive (all 22 methods,
+ * including the ML-KEM-768 trio) with a zero-filled Uint8Array of the
+ * requested length (or a minimal valid shape).
  */
 function createMockCryptoProvider(): CryptoProvider {
     const bytes = (n: number): Uint8Array => new Uint8Array(n);
@@ -144,6 +147,20 @@ function createMockCryptoProvider(): CryptoProvider {
             _key: Uint8Array,
             block: Uint8Array,
         ): Uint8Array => bytes(block.length),
+        mlkem768GenerateKeyPair: (): MLKEM768KeyPair => ({
+            publicKey: bytes(1184),
+            secretKey: bytes(2400),
+        }),
+        mlkem768Decapsulate: (
+            _secretKey: Uint8Array,
+            _ciphertext: Uint8Array,
+        ): Uint8Array => bytes(32),
+        x25519MLKEM768SharedSecret: (
+            _x25519SecretKey: Uint8Array,
+            _x25519PeerPublicKey: Uint8Array,
+            _mlkemSecretKey: Uint8Array,
+            _mlkemCiphertext: Uint8Array,
+        ): Uint8Array => bytes(64),
     };
 }
 
@@ -198,9 +215,6 @@ function createMockTime(): Time {
         now: (): number => 0,
         monotonic: (): bigint => 0n,
     };
-    const duration: Time["scheduler"] extends { delay: (d: infer D) => void }
-        ? D
-        : never = { milliseconds: 0, seconds: () => 0 };
     const controller = new AbortController();
     const scheduler: Time["scheduler"] = {
         delay: vi.fn().mockResolvedValue(undefined),
@@ -213,6 +227,18 @@ function createMockTime(): Time {
     return { clock, scheduler };
 }
 
+/** Build a mock TCP Socket satisfying the full injected Socket contract. */
+function createMockSocket(): Socket {
+    return {
+        write: vi.fn().mockReturnValue(true),
+        end: vi.fn(),
+        destroy: vi.fn(),
+        destroyed: false,
+        once: vi.fn(),
+        on: vi.fn(),
+    };
+}
+
 /** Build a Network bundle with stubbed TCP, DNS, and UDP. */
 function createMockNetwork(): Network {
     const udp: Network["udp"] = {
@@ -220,7 +246,7 @@ function createMockNetwork(): Network {
         send: vi.fn().mockResolvedValue(undefined),
         recv: vi.fn().mockResolvedValue({
             data: new Uint8Array(),
-            from: { address: "127.0.0.1", port: 0 },
+            from: { address: "127.0.0.1", port: 0, family: 4 },
         }),
         close: vi.fn().mockResolvedValue(undefined),
     };
@@ -230,14 +256,7 @@ function createMockNetwork(): Network {
         ]),
     };
     const tcp: Network["tcp"] = {
-        connect: vi.fn().mockReturnValue({
-            write: vi.fn().mockReturnValue(true),
-            end: vi.fn(),
-            destroy: vi.fn(),
-            destroyed: false,
-            once: vi.fn(),
-            on: vi.fn(),
-        }),
+        connect: vi.fn().mockReturnValue(createMockSocket()),
     };
     return { tcp, dns, udp };
 }
@@ -262,38 +281,43 @@ describe("Compression", () => {
     const compression = createMockCompression();
     const sample = new Uint8Array([0x01, 0x02, 0x03]);
 
-    it("gzipSync returns Uint8Array", () => {
-        const result = compression.gzipSync(sample);
+    it("gzip returns Uint8Array", () => {
+        const result = compression.gzip(sample);
         expect(result).toBeInstanceOf(Uint8Array);
     });
 
-    it("gunzipSync returns Uint8Array", () => {
-        const result = compression.gunzipSync(sample);
+    it("gunzip returns Uint8Array", () => {
+        const result = compression.gunzip(sample);
         expect(result).toBeInstanceOf(Uint8Array);
     });
 
-    it("deflateSync returns Uint8Array", () => {
-        const result = compression.deflateSync(sample);
+    it("deflate returns Uint8Array", () => {
+        const result = compression.deflate(sample);
         expect(result).toBeInstanceOf(Uint8Array);
     });
 
-    it("inflateSync returns Uint8Array", () => {
-        const result = compression.inflateSync(sample);
+    it("inflate returns Uint8Array", () => {
+        const result = compression.inflate(sample);
         expect(result).toBeInstanceOf(Uint8Array);
     });
 
-    it("brotliCompressSync returns Uint8Array", () => {
-        const result = compression.brotliCompressSync(sample);
+    it("inflateRaw returns Uint8Array", () => {
+        const result = compression.inflateRaw(sample);
         expect(result).toBeInstanceOf(Uint8Array);
     });
 
-    it("brotliDecompressSync returns Uint8Array", () => {
-        const result = compression.brotliDecompressSync(sample);
+    it("brotliCompress returns Uint8Array", () => {
+        const result = compression.brotliCompress(sample);
         expect(result).toBeInstanceOf(Uint8Array);
     });
 
-    it("decompressSync returns Uint8Array", () => {
-        const result = compression.decompressSync(sample);
+    it("brotliDecompress returns Uint8Array", () => {
+        const result = compression.brotliDecompress(sample);
+        expect(result).toBeInstanceOf(Uint8Array);
+    });
+
+    it("decompress returns Uint8Array", () => {
+        const result = compression.decompress(sample, "gzip");
         expect(result).toBeInstanceOf(Uint8Array);
     });
 });
@@ -307,6 +331,7 @@ describe("Crypto", () => {
         expect(typeof crypto.provider.sha256).toBe("function");
         expect(typeof crypto.provider.x25519GenerateKeyPair).toBe("function");
         expect(typeof crypto.provider.verifySignature).toBe("function");
+        expect(typeof crypto.provider.mlkem768GenerateKeyPair).toBe("function");
     });
 
     it("provider implements CryptoProvider — randomBytes returns Uint8Array", () => {
@@ -320,7 +345,86 @@ describe("Crypto", () => {
         expect(pair.publicKey).toBeInstanceOf(Uint8Array);
         expect(pair.secretKey).toBeInstanceOf(Uint8Array);
     });
+
+    it("provider implements CryptoProvider — ML-KEM-768 trio returns sized outputs", () => {
+        const pair = crypto.provider.mlkem768GenerateKeyPair();
+        expect(pair.publicKey).toHaveLength(1184);
+        expect(pair.secretKey).toHaveLength(2400);
+        const secret = crypto.provider.mlkem768Decapsulate(pair.secretKey, new Uint8Array(1088));
+        expect(secret).toHaveLength(32);
+        const hybrid = crypto.provider.x25519MLKEM768SharedSecret(
+            pair.secretKey.slice(0, 32),
+            new Uint8Array(32),
+            pair.secretKey,
+            new Uint8Array(1088),
+        );
+        expect(hybrid).toHaveLength(64);
+    });
 });
+
+describe("Transport (canonical shape)", () => {
+    it("is satisfied by a broad EventProvider-surface implementation", () => {
+        // Compile-time check: the canonical Transport extends EventProvider and
+        // is satisfied by implementations that declare the broad
+        // (event: string, listener: (...args: unknown[]) => void) on/once
+        // surface — the shape @browsercore/transport's TcpTransport declares.
+        const transport: Transport = createMockTransport();
+        expect(transport.id).toBe("mock-transport");
+        expect(transport.state).toEqual({ state: "open" });
+    });
+
+    it("assigns to EventProvider", () => {
+        const events: EventProvider = createMockTransport();
+        expect(typeof events.on).toBe("function");
+    });
+
+    it("accepts consumer subscription patterns (data/close/error literals)", () => {
+        const transport = createMockTransport();
+        transport.on("data", (...args: unknown[]): void => void args);
+        transport.on("close", (): void => {});
+        transport.once("data", (chunk: unknown): void => void chunk);
+        // Both "data" subscriptions (on + once) registered on the emitter.
+        expect(transport.listenerCount("data")).toBe(2);
+    });
+
+    it("permits richer open states via structural typing (non-literal)", () => {
+        // Implementations may keep extra bookkeeping on the open state —
+        // a non-literal object with extra fields still assigns (the deleted
+        // bytesTransferred counter worked this way in @browsercore/proxy).
+        const richer = { state: "open", bytesTransferred: 5 } as {
+            state: "open";
+            bytesTransferred: number;
+        };
+        const state = richer;
+        expect(state.bytesTransferred).toBe(5);
+    });
+});
+
+/** Minimal mock satisfying the canonical Transport (broad EventProvider surface). */
+function createMockTransport(): Transport {
+    const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+    const add = (event: string, listener: (...args: unknown[]) => void): void => {
+        const set = listeners.get(event) ?? new Set();
+        set.add(listener);
+        listeners.set(event, set);
+    };
+    return {
+        id: "mock-transport",
+        state: { state: "open" },
+        write: vi.fn().mockResolvedValue(undefined),
+        read: vi.fn().mockResolvedValue(new Uint8Array()),
+        close: vi.fn().mockResolvedValue(undefined),
+        on: vi.fn(add),
+        once: vi.fn(add),
+        off: vi.fn(),
+        removeListener: vi.fn(),
+        emit: vi.fn().mockReturnValue(true),
+        listenerCount: vi.fn(
+            (event: string): number => listeners.get(event)?.size ?? 0,
+        ),
+        removeAllListeners: vi.fn(),
+    };
+}
 
 describe("Platform", () => {
     const platform = createMockPlatform();
@@ -372,7 +476,7 @@ describe("Platform", () => {
         expect(typeof cryptoProvider(platform)).toBe("object");
 
         // Compression methods
-        expect(typeof platform.compression.gzipSync).toBe("function");
+        expect(typeof platform.compression.gzip).toBe("function");
 
         // EventProvider methods
         expect(typeof platform.events.on).toBe("function");

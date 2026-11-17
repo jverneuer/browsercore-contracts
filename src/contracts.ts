@@ -11,33 +11,37 @@ import type {
     DatagramCloseReason,
     EcdhCurve,
     EcdhKeyPair,
-    FetchOptions,
-    FetchResponse,
     HashId,
     ProtocolFrame,
-    Request,
-    Response,
     TransportState,
     CloseReason,
-    TlsState,
     UdpAddress,
     X25519KeyPair,
     MLKEM768KeyPair,
 } from "./models.js";
+import type { EventProvider } from "./events.js";
 
 // ===========================================================================
 // Provider Contracts (I/O boundary)
 // ===========================================================================
 
 /**
- * `CryptoProvider` — the injected cryptographic primitive surface.
+ * `CryptoProvider` — the canonical injected cryptographic primitive surface.
  *
- * Implemented by: `@browsercore/crypto`
+ * Canonical definition (replaceability audit 2026-11-16): this is the single
+ * Transport/Crypto-level source of truth. `@browsercore/crypto` re-exports
+ * this exact type; `HashId` is a plain union here while the branded
+ * specializations (`Sha256Id`/`Sha384Id`, the `SHA_256`/`SHA_384` constants)
+ * stay in `@browsercore/crypto` and remain assignable to these parameters in
+ * both directions (verified by compile check).
  *
- * Why here: Every protocol package needs crypto operations. The provider is
- * assembled into `Platform.crypto` by the composition root (`browsersmith`)
- * and threaded down through options — no protocol package imports
- * `node:crypto` or any runtime builtin directly.
+ * Implemented by: the composition root (`browsersmith`) assembles the
+ * Node-backed provider from `@browsercore/crypto` building blocks and injects
+ * it as `Platform.crypto.provider` — protocol packages (tls, quic, http2,
+ * fetch) never import `node:crypto` or any runtime builtin directly.
+ *
+ * All operations are synchronous by design — an async-only backend such as
+ * WebCrypto cannot implement this interface; it is NOT a valid backend.
  */
 export interface CryptoProvider {
     randomBytes(length: number): Uint8Array;
@@ -89,15 +93,21 @@ export interface CryptoProvider {
 }
 
 /**
- * `CompressionProvider` — the injected compression surface.
+ * `CompressionProvider` — the canonical injected compression surface.
  *
- * Implemented by: `@browsercore/compression`
+ * Canonical definition (replaceability audit 2026-11-16): signature-identical
+ * to `@browsercore/compression`'s local copy — verified method-by-method; this
+ * interface is the single source of truth, the compression package keeps a
+ * compatible re-export.
  *
- * Why here: HTTP/1 and HTTP/2 both need compression. Provided via
- * `Platform.compression` and passed down through options — protocols never
- * bind to `node:zlib` directly. All operations are synchronous and
- * unit-testable. Portable across backends (node:zlib, WebCompressionStream,
- * wasm brotli).
+ * Implemented by: the composition root (`browsersmith`) assembles the
+ * node:zlib-backed provider and injects it as `Platform.compression` —
+ * HTTP/1 and HTTP/2 receive it through options and never bind to `node:zlib`
+ * directly.
+ *
+ * All operations are synchronous by design. An async-stream backend such as
+ * WebCompressionStream cannot implement this interface — it is NOT a valid
+ * backend (the former claim that it was has been corrected).
  *
  * The async `encode/decode(ContentEncoding)` shape had zero consumers and is
  * dropped. This sync shape is the single source of truth.
@@ -126,42 +136,64 @@ export interface CompressionProvider {
 }
 
 /**
- * `Transport` — the injected reliable byte stream (TCP).
+ * `Transport` — the canonical injected reliable byte stream (TCP).
  *
- * Implemented by: `@browsercore/transport`
+ * Canonical definition (replaceability audit 2026-11-16): this is the shape
+ * `@browsercore/transport` implements and every protocol package consumes —
+ * `@browsercore/transport` re-exports this exact type instead of declaring a
+ * competing one. The former contracts-only variant (literal-event `on`/`once`
+ * overloads plus a `bytesTransferred` counter on the open state) was
+ * implemented by nobody and is gone.
  *
- * Why here: TLS, HTTP/1, HTTP/2 all consume `Transport`. It is created by the
- * injected `Platform.network.tcp` adapter and passed down through options —
- * never constructed by the protocols themselves.
+ * Implemented by: `@browsercore/transport`'s `TcpTransport` (via
+ * `Platform.network.tcp` + `connect()`), and `@browsercore/proxy`'s
+ * socket adapter for tunneled streams. Consumed by tls, http1, http2, fetch.
  *
- * Event methods (`on`/`once`) are typed narrowly for stream semantics
- * (`data`, `close`, `error`) rather than using the generic `EventProvider`:
- * a Transport is a typed stream, not a generic bus. The *transport package*
- * still receives its events via `Platform.events` internally; these methods
- * are the public stream surface for protocol consumers.
+ * Events: `on`/`once` are inherited from {@link EventProvider} — the broad
+ * `(event: string, listener: (...args: unknown[]) => void)` surface every
+ * implementation actually declares. Narrowing them to per-literal overloads
+ * here would reject those implementations under strict checks (verified by
+ * compile probe on this toolchain), so the typed 3-event overloads of the old
+ * contracts variant are deliberately not preserved. Consumers subscribe to
+ * `"data"`/`"close"`/`"error"` through the EventProvider surface.
+ *
+ * `id` is a plain string; the branded `TransportId` specialization lives in
+ * `@browsercore/transport` and assigns to/from this field.
  */
-export interface Transport {
+export interface Transport extends EventProvider {
+    /** Opaque identifier for logging / correlation. */
     readonly id: string;
+    /** Current lifecycle state (see {@link TransportState}). */
     readonly state: TransportState;
+
+    /**
+     * Write bytes to the stream. Resolves when the data has been handed to the
+     * kernel (or buffered). Rejects if the transport is not open.
+     */
     write(data: Uint8Array): Promise<void>;
+
+    /**
+     * Read available data. Resolves with the next chunk of bytes, or rejects if
+     * the transport closes before any data arrives. For a streaming read API,
+     * subscribe to the `"data"` event instead.
+     */
     read(): Promise<Uint8Array>;
+
+    /**
+     * Gracefully close the transport. Resolves once the stream has closed.
+     * `reason` is recorded for observability.
+     */
     close(reason?: CloseReason): Promise<void>;
-    on(event: "data", listener: (data: Uint8Array) => void): void;
-    on(event: "close", listener: (reason: CloseReason) => void): void;
-    on(event: "error", listener: (error: Error) => void): void;
-    once(event: "data", listener: (data: Uint8Array) => void): void;
-    once(event: "close", listener: (reason: CloseReason) => void): void;
-    once(event: "error", listener: (error: Error) => void): void;
 }
 
 /**
- * `DatagramTransport` — the injected UDP datagram surface.
+ * `DatagramTransport` — the canonical injected UDP datagram surface.
  *
- * Implemented by: `@browsercore/transport`
+ * Canonical definition (replaceability audit 2026-11-16): signature-identical
+ * to `@browsercore/transport`'s local copy, which re-exports this one.
  *
- * Why here: QUIC consumes `DatagramTransport`. Like `Transport`, it is
- * obtained from `Platform.network.udp` and passed down through options —
- * protocol packages never bind to a runtime socket directly.
+ * Implemented by: the composition root's UDP adapter (`browsersmith`,
+ * `Platform.network.udp`). Consumed by `@browsercore/quic`.
  */
 export interface DatagramTransport {
     readonly id: string;
@@ -171,129 +203,16 @@ export interface DatagramTransport {
 }
 
 // ===========================================================================
-// Protocol Connection Contracts
-// ===========================================================================
-
-/**
- * `TlsConnection` — the injected TLS connection surface.
- *
- * Implemented by: `@browsercore/tls`
- *
- * Why here: fetch consumes `TlsConnection`. The TLS package receives its
- * injected dependencies (transport, crypto, events) through `TlsOptions`,
- * which is populated from the `Platform` composition root.
- */
-export interface TlsConnection {
-    readonly id: string;
-    readonly state: TlsState;
-    handshake(): Promise<void>;
-    read(): Promise<Uint8Array>;
-    write(data: Uint8Array): Promise<void>;
-    close(): Promise<void>;
-}
-
-/**
- * `Http1Connection` — the injected HTTP/1 connection surface.
- *
- * Implemented by: `@browsercore/http1`
- *
- * Why here: fetch consumes `Http1Connection`. The package receives its
- * injected transport and profile through `Http1Options`.
- */
-export interface Http1Connection {
-    readonly id: string;
-    request(req: Request): Promise<Response>;
-    close(): Promise<void>;
-}
-
-/**
- * `Http2Connection` — the injected HTTP/2 connection surface.
- *
- * Implemented by: `@browsercore/http2`
- *
- * Why here: fetch consumes `Http2Connection`. The package receives its
- * injected transport and profile through `Http2Options`.
- */
-export interface Http2Connection {
-    readonly id: string;
-    request(req: Request): Promise<Response>;
-    close(): Promise<void>;
-    goaway(): Promise<void>;
-}
-
-/**
- * `Http3Connection` — the injected HTTP/3 connection surface.
- *
- * Implemented by: `@browsercore/http3`
- *
- * Why here: fetch consumes `Http3Connection`. Built on top of
- * `QuicConnection`; receives its injected QUIC transport through
- * `Http3Options`.
- */
-export interface Http3Connection {
-    readonly id: string;
-    request(req: Request): Promise<Response>;
-    close(): Promise<void>;
-    goaway(streamId: bigint): Promise<void>;
-}
-
-/**
- * `QuicConnection` — the injected QUIC connection surface.
- *
- * Implemented by: `@browsercore/quic`
- *
- * Why here: HTTP/3 consumes `QuicConnection`. The package receives its
- * injected UDP transport and crypto through `QuicOptions`, populated from
- * `Platform`.
- */
-export interface QuicConnection {
-    readonly id: string;
-    handshake(): Promise<void>;
-    openBidirectionalStream(): Promise<QuicStream>;
-    acceptBidirectionalStream(): Promise<QuicStream>;
-    openUnidirectionalStream(): Promise<QuicStream>;
-    acceptUnidirectionalStream(): Promise<QuicStream>;
-    close(errorCode: bigint, reason: string): Promise<void>;
-    sendPathChallenge(data: Uint8Array): void;
-    hasPendingPathChallenge(data: Uint8Array): boolean;
-}
-
-/**
- * `QuicStream` — an injected QUIC stream handle.
- *
- * Why here: `QuicConnection` returns `QuicStream`; HTTP/3 uses it for
- * request multiplexing. Streams are owned by the QUIC package and carry no
- * direct runtime dependency.
- */
-export interface QuicStream {
-    readonly id: bigint;
-    write(data: Uint8Array): Promise<void>;
-    read(): Promise<Uint8Array>;
-    close(): Promise<void>;
-}
-
-// ===========================================================================
 // Client Contracts
 // ===========================================================================
 
 /**
- * `FetchClient` — the injected high-level fetch surface.
- *
- * Implemented by: `@browsercore/fetch`
- *
- * Why here: browsersmith consumes `FetchClient`. Assembled from the
- * protocol connections and injected services (`CookieJar`, transport, crypto)
- * via `FetchClientOptions`, which `browsersmith` populates from `Platform`.
- */
-export interface FetchClient {
-    fetch(url: string, options?: FetchOptions): Promise<FetchResponse>;
-    close(): Promise<void>;
-}
-
-/**
  * `CookieJar` — the injected cookie storage surface.
  *
- * Implemented by: `@browsercore/cookies`
+ * Implemented by: `@browsercore/cookies` (its local `CookieJar` is the shape
+ * consumers actually bind; note its `setCookie` parameter order is
+ * `(cookie, url)` — flipped relative to this interface. Reconciling the two
+ * is tracked separately from the Transport/CryptoProvider unification.)
  *
  * Why here: fetch and browsersmith both use `CookieJar`. Provided via
  * `FetchClientOptions.cookieJar`, populated from `Platform` or a custom
@@ -312,9 +231,9 @@ export interface CookieJar {
 // ===========================================================================
 
 // The canonical `Clock` lives in `time.ts` (with `monotonic()`) and is
-// re-exported from the barrel. The options-level `Clock` shape consumed by
-// protocol packages is imported directly from `time.ts` in `options.ts`; it
-// needs only `now()`, which `time.ts` satisfies.
+// re-exported from the barrel. The dead options layer that once re-declared
+// a narrower `Clock` shape was removed with the rest of `options.ts`
+// (replaceability audit 2026-11-16: zero consumers repo-wide).
 
 /**
  * `PacketCallback` — the injected packet-inspection surface.
