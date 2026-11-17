@@ -12,19 +12,19 @@
  *        │
  *        ▼
  *   Platform
- *    ├── network    (TCP, DNS, UDP)
- *    ├── crypto     (CryptoProvider)
- *    ├── compression (gzip, deflate, brotli, etc.)
- *    ├── events     (EventProvider)
- *    ├── telemetry  (logger, tracer, metrics)
- *    └── time       (Clock + Scheduler)
+ *    ├── network?     (TCP, DNS, UDP socket factory — each member optional)
+ *    ├── crypto?      (CryptoProvider)
+ *    ├── compression? (gzip, deflate, brotli, etc.)
+ *    ├── events?      (EventProvider)
+ *    ├── telemetry?   (logger, tracer, metrics)
+ *    └── time?        (Clock — the canonical time contract)
  *
  * All fields are interfaces — this file has zero runtime behavior
  * and zero node:* imports.
  */
 
 import type { Network, Net, DnsResolver } from "./tcp-transport.js";
-import type { CryptoProvider, CompressionProvider, DatagramTransport } from "./contracts.js";
+import type { CryptoProvider, CompressionProvider, UdpSocketFactory } from "./contracts.js";
 import type { EventProvider } from "./events.js";
 import type { Telemetry } from "./telemetry.js";
 import type { Time } from "./time.js";
@@ -71,14 +71,33 @@ export interface Crypto {
  * imports) and threaded down through options to every protocol package.
  * No package hardwires runtime imports; all capabilities arrive via this
  * object. This is the seam that makes BrowserCore portable and testable.
+ *
+ * Every bundle is OPTIONAL (replaceability audit 2026-11-16, remediation
+ * item #5: "Platform all-or-nothing with REQUIRED udp" forced consumers to
+ * lie to the type system). A platform now carries exactly the capabilities
+ * its runtime has — a UDP-less runtime (Cloudflare Workers) omits
+ * `network.udp`, a crypto-less test platform omits `crypto`. Consumers
+ * resolve the bundle they use and, when it is absent, throw a typed error
+ * that names the missing capability. The sanctioned pattern already exists:
+ * `@browsercore/fetch`'s `proxyDialPlatform` (`fetch/src/proxy.ts`) assembles
+ * a minimal platform whose untouched bundles are throwing getters naming the
+ * culprit — with optional bundles the same guarantee is expressed by simply
+ * omitting the field, and consumers write
+ * `platform.network?.tcp ?? throw new MissingCapabilityError("platform.network.tcp")`.
+ *
+ * Implementers may still provide every bundle (browsersmith's `createPlatform()`
+ * does) — an implementation that provides more than a consumer requires
+ * always satisfies the interface. Optionality only removes the obligation to
+ * FAKE capabilities a runtime lacks.
  */
 export interface Platform {
-    readonly network: Network;
-    readonly crypto: Crypto;
-    readonly compression: Compression;
-    readonly events: EventProvider;
-    readonly telemetry: Telemetry;
-    readonly time: Time;
+    /** Network bundle (TCP, DNS, UDP factory) — each member independently optional. */
+    readonly network?: Network;
+    readonly crypto?: Crypto;
+    readonly compression?: Compression;
+    readonly events?: EventProvider;
+    readonly telemetry?: Telemetry;
+    readonly time?: Time;
 }
 
 // ===========================================================================
@@ -95,7 +114,7 @@ export interface PlatformOptions {
     readonly network?: {
         readonly tcp?: Net;
         readonly dns?: DnsResolver;
-        readonly udp?: DatagramTransport;
+        readonly udp?: UdpSocketFactory;
     };
     readonly crypto?: {
         readonly provider?: CryptoProvider;

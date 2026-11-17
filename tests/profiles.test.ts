@@ -272,9 +272,11 @@ describe("public surface", () => {
     });
 
     it("composes a full BrowserProfile from the extended profiles", () => {
+        // Since 0.2.6 ProfileId is the closed registry union — the fixture id
+        // must be one of the ten built-in ids (typo protection by design).
         const profile: BrowserProfile = {
-            id: "chrome-124",
-            name: "Chrome 124",
+            id: "chrome-128",
+            name: "Chrome 128",
             tls: chromeTls,
             http1: chromeHttp1,
             http2: chromeHttp2,
