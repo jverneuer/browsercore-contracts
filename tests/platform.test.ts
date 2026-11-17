@@ -11,10 +11,10 @@ import { describe, it, expect, vi } from "vitest";
 import type { Platform } from "../src/platform.js";
 import type { Compression } from "../src/platform.js";
 import type { Crypto } from "../src/platform.js";
-import type { CryptoProvider, Transport } from "../src/contracts.js";
+import type { CryptoProvider, Transport, UdpSocketFactory } from "../src/contracts.js";
 import type { EventProvider } from "../src/events.js";
 import type { Telemetry } from "../src/telemetry.js";
-import type { Time } from "../src/time.js";
+import type { Clock, Time } from "../src/time.js";
 import type { Network, Socket } from "../src/tcp-transport.js";
 import type {
     HashId,
@@ -209,22 +209,16 @@ interface SpanLike {
     end(): void;
 }
 
-/** Build a Time bundle with a controllable clock and scheduler. */
+/** Build a Time bundle — the canonical Clock (Time aliases it since 0.2.6). */
 function createMockTime(): Time {
-    const clock: Time["clock"] = {
-        now: (): number => 0,
-        monotonic: (): bigint => 0n,
+    const clock: Clock = {
+        now: vi.fn().mockReturnValue(0),
+        monotonic: vi.fn().mockReturnValue(0),
+        sleep: vi.fn().mockResolvedValue(undefined),
+        setTimeout: vi.fn().mockReturnValue({}),
+        clearTimeout: vi.fn(),
     };
-    const controller = new AbortController();
-    const scheduler: Time["scheduler"] = {
-        delay: vi.fn().mockResolvedValue(undefined),
-        timeout: vi.fn().mockReturnValue(controller.signal),
-        deadline: vi.fn().mockReturnValue({
-            signal: controller.signal,
-            expiresAt: 0n,
-        }),
-    };
-    return { clock, scheduler };
+    return clock;
 }
 
 /** Build a mock TCP Socket satisfying the full injected Socket contract. */
@@ -239,16 +233,18 @@ function createMockSocket(): Socket {
     };
 }
 
-/** Build a Network bundle with stubbed TCP, DNS, and UDP. */
+/** Build a Network bundle with stubbed TCP, DNS, and a UDP socket factory. */
 function createMockNetwork(): Network {
-    const udp: Network["udp"] = {
-        id: "mock-udp",
-        send: vi.fn().mockResolvedValue(undefined),
-        recv: vi.fn().mockResolvedValue({
-            data: new Uint8Array(),
-            from: { address: "127.0.0.1", port: 0, family: 4 },
+    const udp: UdpSocketFactory = {
+        connect: vi.fn().mockResolvedValue({
+            id: "mock-udp-socket",
+            send: vi.fn().mockResolvedValue(undefined),
+            recv: vi.fn().mockResolvedValue({
+                data: new Uint8Array(),
+                from: { address: "127.0.0.1", port: 0, family: 4 },
+            }),
+            close: vi.fn().mockResolvedValue(undefined),
         }),
-        close: vi.fn().mockResolvedValue(undefined),
     };
     const dns: Network["dns"] = {
         lookup: vi.fn().mockResolvedValue([
@@ -467,33 +463,162 @@ describe("Platform", () => {
     });
 
     it("exposes typed sub-interfaces on each field", () => {
+        // Since 0.2.6 every bundle is optional — the full mock provides them
+        // all, and the consumer pattern for reading them is resolve-or-throw
+        // (the typed-missing-capability pattern the README documents).
+        const network = required(platform.network, "platform.network");
+
         // Network sub-interfaces
-        expect(platform.network.tcp).toBeDefined();
-        expect(platform.network.dns).toBeDefined();
-        expect(platform.network.udp).toBeDefined();
+        expect(network.tcp).toBeDefined();
+        expect(network.dns).toBeDefined();
+        expect(network.udp).toBeDefined();
 
         // Crypto provider
         expect(typeof cryptoProvider(platform)).toBe("object");
 
         // Compression methods
-        expect(typeof platform.compression.gzip).toBe("function");
+        expect(typeof required(platform.compression, "platform.compression").gzip).toBe("function");
 
         // EventProvider methods
-        expect(typeof platform.events.on).toBe("function");
-        expect(typeof platform.events.emit).toBe("function");
+        const events = required(platform.events, "platform.events");
+        expect(typeof events.on).toBe("function");
+        expect(typeof events.emit).toBe("function");
 
         // Telemetry sub-interfaces
-        expect(typeof platform.telemetry.logger.info).toBe("function");
-        expect(typeof platform.telemetry.tracer.startSpan).toBe("function");
-        expect(typeof platform.telemetry.metrics.add).toBe("function");
+        const telemetry = required(platform.telemetry, "platform.telemetry");
+        expect(typeof telemetry.logger.info).toBe("function");
+        expect(typeof telemetry.tracer.startSpan).toBe("function");
+        expect(typeof telemetry.metrics.add).toBe("function");
 
-        // Time sub-interfaces
-        expect(typeof platform.time.clock.now).toBe("function");
-        expect(typeof platform.time.scheduler.delay).toBe("function");
+        // Time bundle — the canonical Clock surface
+        const time = required(platform.time, "platform.time");
+        expect(typeof time.now).toBe("function");
+        expect(typeof time.monotonic).toBe("function");
+        expect(typeof time.sleep).toBe("function");
+        expect(typeof time.setTimeout).toBe("function");
+        expect(typeof time.clearTimeout).toBe("function");
+    });
+});
+
+/**
+ * Resolve a capability or throw naming it — the consumer-side pattern for
+ * optional Platform bundles (what fetch's proxyDialPlatform established).
+ * Test-local mirror of the "typed missing-capability" idiom.
+ */
+function required<T>(value: T | undefined, name: string): T {
+    if (value === undefined) {
+        throw new Error(`missing capability: ${name}`);
+    }
+    return value;
+}
+
+// ===========================================================================
+// Platform optionality (0.2.6) — every bundle optional
+// ===========================================================================
+
+describe("Platform optionality (0.2.6)", () => {
+    it("is satisfied by an empty platform (a runtime with no capabilities)", () => {
+        const empty: Platform = {};
+        expect(Object.keys(empty)).toHaveLength(0);
+    });
+
+    it("is satisfied by a single-bundle platform (e.g. UDP-less Workers-style)", () => {
+        const cryptoOnly: Platform = { crypto: createMockCrypto() };
+        expect(cryptoOnly.crypto).toBeDefined();
+        expect(cryptoOnly.network).toBeUndefined();
+    });
+
+    it("is satisfied by a network-only platform with a subset of network members", () => {
+        // A TCP+DNS platform with NO udp — the shape fetch's proxy dialer needs.
+        const network: Network = {
+            tcp: { connect: vi.fn().mockReturnValue(createMockSocket()) },
+            dns: {
+                lookup: vi.fn().mockResolvedValue([
+                    { address: "127.0.0.1", family: 4 as const },
+                ]),
+            },
+        };
+        const platform: Platform = { network };
+        expect(platform.network?.udp).toBeUndefined();
+        expect(platform.network?.tcp).toBeDefined();
+    });
+
+    it("lets consumers resolve capabilities with optional chaining (compile-time shape)", () => {
+        // The sanctioned consumer pattern: dereference defensively; a missing
+        // capability is handled at the point of use (fetch's proxyDialPlatform
+        // throws a typed error naming the missing member).
+        const platform: Platform = createMockPlatform();
+        const tcp = platform.network?.tcp;
+        expect(tcp).toBeDefined();
+        if (tcp === undefined) {
+            throw new Error("unexpected missing platform.network.tcp in full mock");
+        }
+        expect(typeof tcp.connect).toBe("function");
+    });
+
+    it("still accepts a full implementation (implementers provide more, not less)", () => {
+        // browsersmith's createPlatform() provides every bundle — that must
+        // keep satisfying the now-optional interface.
+        const full: Platform = {
+            network: createMockNetwork(),
+            crypto: createMockCrypto(),
+            compression: createMockCompression(),
+            events: createMockEventProvider(),
+            telemetry: createMockTelemetry(),
+            time: createMockTime(),
+        };
+        expect(full.network?.udp).toBeDefined();
+        expect(full.crypto?.provider).toBeDefined();
+    });
+});
+
+// ===========================================================================
+// UdpSocketFactory (0.2.6) — per-connection datagram sockets
+// ===========================================================================
+
+describe("UdpSocketFactory", () => {
+    it("connect() resolves a per-connection DatagramTransport", async () => {
+        const network = createMockNetwork();
+        if (network.udp === undefined) {
+            throw new Error("mock network must include a udp factory");
+        }
+        const factory: UdpSocketFactory = network.udp;
+        const socket = await factory.connect({
+            address: "192.0.2.10",
+            port: 443,
+            family: 4,
+        });
+        expect(typeof socket.send).toBe("function");
+        expect(typeof socket.recv).toBe("function");
+        expect(typeof socket.close).toBe("function");
+        expect(factory.connect).toHaveBeenCalledWith({
+            address: "192.0.2.10",
+            port: 443,
+            family: 4,
+        });
+    });
+
+    it("produces independent sockets per connect() call (no shared singleton)", async () => {
+        const factory: UdpSocketFactory = {
+            connect: vi.fn().mockImplementation(async () => ({
+                id: `udp-${Math.random().toString(16).slice(2)}`,
+                send: vi.fn().mockResolvedValue(undefined),
+                recv: vi.fn().mockResolvedValue({
+                    data: new Uint8Array(1),
+                    from: { address: "192.0.2.10", port: 443, family: 4 as const },
+                }),
+                close: vi.fn().mockResolvedValue(undefined),
+            })),
+        };
+        const a = await factory.connect({ address: "192.0.2.10", port: 443, family: 4 });
+        const b = await factory.connect({ address: "192.0.2.11", port: 443, family: 4 });
+        expect(a).not.toBe(b);
+        expect(a.id).not.toBe(b.id);
+        expect(factory.connect).toHaveBeenCalledTimes(2);
     });
 });
 
 /** Local helper — mirrors the public Crypto surface for assertions. */
 function cryptoProvider(platform: Platform): CryptoProvider {
-    return platform.crypto.provider;
+    return required(platform.crypto, "platform.crypto").provider;
 }

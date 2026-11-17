@@ -33,6 +33,7 @@ export type {
     CompressionProvider,
     Transport,
     DatagramTransport,
+    UdpSocketFactory,
     // Client contracts
     CookieJar,
     // Cross-cutting
@@ -102,6 +103,43 @@ export type {
 } from "./tcp-transport.js";
 
 // ===========================================================================
+// TLS engine — the quic↔tls handshake seam (no-hard-wires)
+// ===========================================================================
+
+export type {
+    // Canonical TLS wire-level types (aliases arrive with @browsercore/tls)
+    AeadAlgorithm,
+    CipherSuite,
+    NamedGroup,
+    SignatureScheme,
+    ProtocolVersion,
+    // Handshake data shapes
+    ClientHelloConfig,
+    ServerHello,
+    Certificate,
+    KeyPair,
+    TrafficSecrets,
+    ApplicationTrafficSecrets,
+    HandshakePhase,
+    AlertLevel,
+    // The engine seam
+    TlsHandshakeContext,
+    TlsHandshakeEngine,
+} from "./tls-engine.js";
+
+// ===========================================================================
+// Config — canonical configuration types (aliases arrive next wave)
+// ===========================================================================
+
+export type {
+    ProxyScheme,
+    ProxyConfig,
+    ProxyTarget,
+    ProxyCredentials,
+    CookieJarConsumer,
+} from "./config.js";
+
+// ===========================================================================
 // Events — platform-agnostic event contracts
 // ===========================================================================
 
@@ -128,6 +166,7 @@ export type {
 
 export type {
     Clock,
+    TimerHandle,
     Deadline,
     Scheduler,
     Time,

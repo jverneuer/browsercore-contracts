@@ -42,6 +42,9 @@ import type { EventProvider } from "./events.js";
  *
  * All operations are synchronous by design — an async-only backend such as
  * WebCrypto cannot implement this interface; it is NOT a valid backend.
+ * The full rationale (sync protocol state machines, pure-JS noble backends
+ * covering the surface including ML-KEM, the cost of an async future) is
+ * recorded in [docs/design-decisions.md](docs/design-decisions.md).
  */
 export interface CryptoProvider {
     randomBytes(length: number): Uint8Array;
@@ -107,7 +110,8 @@ export interface CryptoProvider {
  *
  * All operations are synchronous by design. An async-stream backend such as
  * WebCompressionStream cannot implement this interface — it is NOT a valid
- * backend (the former claim that it was has been corrected).
+ * backend (the former claim that it was has been corrected). The full
+ * rationale lives in [docs/design-decisions.md](docs/design-decisions.md).
  *
  * The async `encode/decode(ContentEncoding)` shape had zero consumers and is
  * dropped. This sync shape is the single source of truth.
@@ -192,8 +196,13 @@ export interface Transport extends EventProvider {
  * Canonical definition (replaceability audit 2026-11-16): signature-identical
  * to `@browsercore/transport`'s local copy, which re-exports this one.
  *
+ * One instance represents ONE datagram endpoint (a bound socket talking to a
+ * single peer addressing scheme). Do not share an instance across independent
+ * connections — obtain one per connection from a {@link UdpSocketFactory}
+ * (injected as `Platform.network.udp`).
+ *
  * Implemented by: the composition root's UDP adapter (`browsersmith`,
- * `Platform.network.udp`). Consumed by `@browsercore/quic`.
+ * via `Platform.network.udp.connect()`). Consumed by `@browsercore/quic`.
  */
 export interface DatagramTransport {
     readonly id: string;
@@ -202,21 +211,52 @@ export interface DatagramTransport {
     close(reason?: DatagramCloseReason): Promise<void>;
 }
 
+/**
+ * `UdpSocketFactory` — the canonical injected UDP entry point.
+ *
+ * Factory, deliberately NOT an instance: the old `Platform.network.udp` shape
+ * (`udp: DatagramTransport`) forced the composition root to bind ONE socket
+ * at module load — `browsersmith`'s adapter called `createSocket("udp4")` at
+ * import time and shared that singleton everywhere (replaceability audit
+ * 2026-11-16: "udp default = import-time-bound createSocket('udp4') singleton").
+ * A factory keeps socket creation at connection time, per connection: the
+ * consumer (`@browsercore/quic`) calls `connect()` when it opens a session and
+ * closes the returned {@link DatagramTransport} when the session ends. Nothing
+ * datagram-related happens merely because the platform module was imported —
+ * which is what makes a UDP-less runtime (e.g. Cloudflare Workers) able to
+ * omit the factory entirely instead of dead-binding a socket.
+ *
+ * Implemented by: the composition root (`browsersmith`, injected as
+ * `Platform.network.udp` — now optional). Consumed by `@browsercore/quic`.
+ */
+export interface UdpSocketFactory {
+    /**
+     * Open a datagram endpoint for communicating with `address`.
+     * Resolves once the socket is ready to send/receive.
+     */
+    connect(address: UdpAddress): Promise<DatagramTransport>;
+}
+
 // ===========================================================================
 // Client Contracts
 // ===========================================================================
 
 /**
- * `CookieJar` — the injected cookie storage surface.
+ * `CookieJar` — the full cookie storage surface.
  *
  * Implemented by: `@browsercore/cookies` (its local `CookieJar` is the shape
  * consumers actually bind; note its `setCookie` parameter order is
- * `(cookie, url)` — flipped relative to this interface. Reconciling the two
+ * `(raw, url)` — flipped relative to this interface. Reconciling the two
  * is tracked separately from the Transport/CryptoProvider unification.)
  *
  * Why here: fetch and browsersmith both use `CookieJar`. Provided via
  * `FetchClientOptions.cookieJar`, populated from `Platform` or a custom
  * implementation — never hardcoded to a runtime store.
+ *
+ * Consumers that only READ cookies out of a jar (send `getCookies`, store
+ * `setCookie`) should depend on the narrower structural `CookieJarConsumer`
+ * (see `config.ts`) instead — `@browsercore/cookies`' full jar satisfies it
+ * as a strict superset.
  */
 export interface CookieJar {
     getCookies(url: string): readonly Cookie[];

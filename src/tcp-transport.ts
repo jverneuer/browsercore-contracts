@@ -12,7 +12,7 @@
  * adapt to it.
  */
 
-import type { DatagramTransport } from "./contracts.js";
+import type { UdpSocketFactory } from "./contracts.js";
 
 // ===========================================================================
 // TCP
@@ -101,13 +101,37 @@ export interface DnsResolver {
 /**
  * `Network` — the injected network bundle (part of `Platform`).
  *
- * Aggregates `Net`, `DnsResolver`, and `DatagramTransport` into a single
+ * Aggregates `Net`, `DnsResolver`, and the `UdpSocketFactory` into a single
  * object that `browsersmith` assembles and passes down through
  * `Platform.network`. Protocol packages never import `node:net` /
  * `node:dgram` directly.
+ *
+ * Every member is OPTIONAL (replaceability audit 2026-11-16, remediation
+ * item #5): a platform provides exactly the capabilities its runtime has,
+ * and a consumer resolves the member it needs before use — a missing member
+ * is a typed, named failure at the point of use, never a silent stub. The
+ * sanctioned pattern is `@browsercore/fetch`'s `proxyDialPlatform`
+ * (`fetch/src/proxy.ts`): it reads only `network.tcp` (all schemes) and
+ * `network.dns` (socks5 with a hostname target) and raises its own typed
+ * error naming the missing capability when a required member is absent —
+ * which is why `dns` stays genuinely `undefined` there instead of being
+ * faked. Consumers should do the same: dereference defensively
+ * (`platform.network?.tcp`) and throw an explicit error such as
+ * `"platform.network.udp is not available on this runtime"` that names the
+ * missing capability, so a wiring gap is diagnosable at the call site.
  */
 export interface Network {
-    readonly tcp: Net;
-    readonly dns: DnsResolver;
-    readonly udp: DatagramTransport;
+    /** TCP connect capability. Omitted by datagram-only or connectionless runtimes. */
+    readonly tcp?: Net;
+    /** DNS resolution capability. Omitted when the runtime cannot resolve (proxy remote-DNS paths). */
+    readonly dns?: DnsResolver;
+    /**
+     * UDP datagram factory. A FACTORY, not a shared instance: `connect()`
+     * returns a per-connection {@link UdpSocketFactory} socket so nothing is
+     * bound at module-import time (the former instance shape forced
+     * `browsersmith`'s import-time `createSocket("udp4")` singleton —
+     * replaceability audit 2026-11-16). Omitted by runtimes without UDP
+     * (e.g. Cloudflare Workers — HTTP/3 is unavailable there, HTTP/2 is not).
+     */
+    readonly udp?: UdpSocketFactory;
 }

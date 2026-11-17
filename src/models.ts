@@ -34,10 +34,30 @@ export interface ProtocolFrame {
 // ===========================================================================
 
 /**
- * Profile identifier — a plain string (registry key into @browsercore/profiles).
- * Branding deliberately lives in the implementing packages, not here.
+ * Profile identifier — the registry keys of @browsercore/profiles' built-in
+ * browser fingerprints.
+ *
+ * Canonical union (0.2.6), derived from the profiles registry
+ * (`@browsercore/profiles/src/registry.ts` indexes exactly these ids from the
+ * chrome/firefox/safari/edge profile sources — extend here when a new
+ * browser version lands). `@browsercore/profiles` currently keeps its own
+ * branded `ProfileId` (`string & { __brand: "ProfileId" }`); the two
+ * reconcile next wave (canonical-with-alias), where profiles also decides how
+ * runtime-registered custom ids (`registerProfile`) widen the set. Consumers
+ * passing a known registry id get literal autocomplete and typo protection
+ * here.
  */
-export type ProfileId = string;
+export type ProfileId =
+    | "chrome-120"
+    | "chrome-128"
+    | "chrome-140"
+    | "edge-120"
+    | "edge-128"
+    | "firefox-120"
+    | "firefox-128"
+    | "firefox-135"
+    | "safari-17"
+    | "safari-18";
 
 // ===========================================================================
 // Browser Profile
