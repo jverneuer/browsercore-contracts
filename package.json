@@ -1,6 +1,6 @@
 {
     "name": "@browsercore/contracts",
-    "version": "0.2.6",
+    "version": "0.2.7",
     "description": "Shared interfaces and models for the browsercore stack",
     "repository": {
         "type": "git",

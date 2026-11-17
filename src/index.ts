@@ -48,6 +48,7 @@ export type {
 export type {
     // Identifiers
     ProfileId,
+    RegisteredProfileId,
     // Browser profile
     BrowserProfile,
     TlsProfile,
