@@ -47,7 +47,11 @@ export interface ProtocolFrame {
  * passing a known registry id get literal autocomplete and typo protection
  * here.
  */
-export type ProfileId =
+/**
+ * The closed set of registry-shipped profile ids. Literal autocomplete +
+ * typo protection; deliberately NOT exported alone — see {@link ProfileId}.
+ */
+export type RegisteredProfileId =
     | "chrome-120"
     | "chrome-128"
     | "chrome-140"
@@ -58,6 +62,17 @@ export type ProfileId =
     | "firefox-135"
     | "safari-17"
     | "safari-18";
+
+/**
+ * ProfileId = the registry ids PLUS any runtime-registered custom id
+ * (`registerProfile`). The `(string & {})` widening keeps literal
+ * autocomplete and typo-flagging for the known ids while accepting custom
+ * registrations — a closed union would break the registry's extension point.
+ */
+// `& Record<never, never>` is the ban-types-safe autocomplete-widening
+// idiom (equivalent to `& {}`): literals keep suggestions and typo-flagging
+// via RegisteredProfileId while custom ids stay assignable.
+export type ProfileId = RegisteredProfileId | (string & Record<never, never>);
 
 // ===========================================================================
 // Browser Profile

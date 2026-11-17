@@ -116,9 +116,16 @@ describe("ProfileId (canonical union)", () => {
         expect(profile.id).toBe("chrome-140");
     });
 
-    it("rejects unknown ids at compile time", () => {
-        // @ts-expect-error — not in the registry union
-        const bad: ProfileId = "chrome-999";
+    it("flags typos against the registry while accepting custom ids", () => {
+        // widenend union: a registry id autocompletes; a custom id is legal
+        // (registerProfile extension point); a TYPO of a registry id is the
+        // case (string & {}) genuinely cannot catch — documented trade-off.
+        const custom: ProfileId = "my-registered-custom";
+        const known: ProfileId = "chrome-140";
+        expect([custom, known]).toEqual(["my-registered-custom", "chrome-140"]);
+        // @ts-expect-error — RegisteredProfileId stays closed: typos of the
+        // known set are still flagged where the closed set is required.
+        const bad: RegisteredProfileId = "chrome-999";
         expect(bad).toBeDefined();
     });
 });
