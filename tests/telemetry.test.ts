@@ -17,7 +17,9 @@ import type { Logger, Span, Tracer, Metrics, Telemetry } from "../src/telemetry.
 interface LogCall {
     level: "debug" | "info" | "warn" | "error";
     message: string;
-    attrs?: Readonly<Record<string, unknown>>;
+    // `| undefined`: the recording mock pushes the argument verbatim, and
+    // exactOptionalPropertyTypes rejects explicit undefined on `?:` fields.
+    attrs?: Readonly<Record<string, unknown>> | undefined;
 }
 
 interface SpanSetAttributeCall {
@@ -28,7 +30,9 @@ interface SpanSetAttributeCall {
 interface MetricsAddCall {
     name: string;
     value: number;
-    attrs?: Readonly<Record<string, unknown>>;
+    // `| undefined`: the recording mock pushes the argument verbatim, and
+    // exactOptionalPropertyTypes rejects explicit undefined on `?:` fields.
+    attrs?: Readonly<Record<string, unknown>> | undefined;
 }
 
 function createRecordingLogger(): { logger: Logger; calls: LogCall[] } {

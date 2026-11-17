@@ -33,7 +33,10 @@ export interface ProtocolFrame {
 // Identifiers
 // ===========================================================================
 
-/** Branded profile identifier. */
+/**
+ * Profile identifier — a plain string (registry key into @browsercore/profiles).
+ * Branding deliberately lives in the implementing packages, not here.
+ */
 export type ProfileId = string;
 
 // ===========================================================================
@@ -341,9 +344,19 @@ export interface UdpAddress {
     readonly family: 4 | 6;
 }
 
+/**
+ * Lifecycle state of a transport connection.
+ *
+ * Canonical shape — identical to the one `@browsercore/transport` implements
+ * and every protocol package consumes. The `open` variant carries no byte
+ * counter: the former `bytesTransferred` field was implemented by nobody
+ * (only faked by @browsercore/proxy's socket adapter) and is gone
+ * (replaceability audit 2026-11-16). Extra state fields stay permitted via
+ * structural typing — implementations may keep richer internal states.
+ */
 export type TransportState =
     | { readonly state: "connecting" }
-    | { readonly state: "open"; readonly bytesTransferred: number }
+    | { readonly state: "open" }
     | { readonly state: "closing" }
     | { readonly state: "closed"; readonly reason: CloseReason };
 
