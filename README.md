@@ -1,8 +1,9 @@
 # @browsercore/contracts
 
 [![npm version](https://img.shields.io/npm/v/@browsercore/contracts)](https://www.npmjs.com/package/@browsercore/contracts)
-[![coverage](https://img.shields.io/endpoint?url=https://jverneuer.github.io/browsercore-contracts/badge.json)](https://github.com/jverneuer/browsercore-contracts/blob/main/COVERAGE.md)
-[![CI](https://img.shields.io/github/actions/workflow/status/jverneuer/browsercore-contracts/ci.yml?label=CI)](https://github.com/jverneuer/browsercore-contracts/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://jverneuer.github.io/browsercore-contracts/badge.json)](https://jverneuer.github.io/browsercore-contracts/COVERAGE.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/jverneuer/browsercore-contracts/ci.yml?label=ci)](https://github.com/jverneuer/browsercore-contracts/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/@browsercore/contracts.svg)](LICENSE)
 
 The canonical interface package for the browsercore stack. Every protocol
 package, runtime adapter, and consumer depends on these contracts — they
